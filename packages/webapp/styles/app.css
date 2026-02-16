@@ -693,7 +693,6 @@ body,
   padding: 14px 18px;
   color: var(--text);
   font-family: var(--font-body);
-  font-style: italic;
   font-size: 16px;
   line-height: 1.5;
   resize: none;
@@ -729,7 +728,7 @@ body,
   white-space: nowrap;
 }
 
-.composer-send:hover {
+.composer-send:hover:not(:disabled) {
   opacity: 0.8;
 }
 
@@ -756,7 +755,7 @@ body,
   transition: color 0.1s;
 }
 
-.clear-button:hover {
+.clear-button:hover:not(:disabled) {
   color: var(--red);
 }
 
@@ -961,7 +960,7 @@ body,
   white-space: nowrap;
 }
 
-.config-apply-btn:hover {
+.config-apply-btn:hover:not(:disabled) {
   opacity: 0.8;
 }
 

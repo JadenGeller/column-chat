@@ -299,18 +299,29 @@ export function ConfigEditor({ state }: ConfigEditorProps) {
             </button>
           </div>
           <div className="composer-links">
-            <button
-              className="clear-button"
-              onClick={() => state.setEditing(false)}
-            >
-              Stash
-            </button>
-            <button
-              className="clear-button"
-              onClick={() => { resetDraft(); state.setEditing(false); }}
-            >
-              Abandon
-            </button>
+            {isDirty ? (
+              <>
+                <button
+                  className="clear-button"
+                  onClick={() => state.setEditing(false)}
+                >
+                  Stash
+                </button>
+                <button
+                  className="clear-button"
+                  onClick={() => { resetDraft(); state.setEditing(false); }}
+                >
+                  Abandon
+                </button>
+              </>
+            ) : (
+              <button
+                className="clear-button"
+                onClick={() => state.setEditing(false)}
+              >
+                Done
+              </button>
+            )}
           </div>
         </div>
       </div>
