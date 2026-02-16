@@ -136,7 +136,7 @@ body,
 
 .thread-viewport {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   padding: 48px var(--content-inset) 160px;
   display: flex;
   flex-direction: column;
@@ -146,6 +146,7 @@ body,
 /* Scrollbar — minimal */
 .thread-viewport::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 
 .thread-viewport::-webkit-scrollbar-track {
@@ -169,6 +170,8 @@ body,
   text-align: center;
   gap: 20px;
   padding: 48px 16px;
+  position: sticky;
+  left: 0;
 }
 
 .thread-empty-mark {
@@ -220,10 +223,8 @@ body,
 
 .message-user {
   padding: 24px 0;
-  margin-left: calc(-1 * var(--content-inset));
-  margin-right: calc(-1 * var(--content-inset));
-  padding-left: var(--content-inset);
-  padding-right: var(--content-inset);
+  position: sticky;
+  left: 0;
 }
 
 .message-user-label {
@@ -251,10 +252,7 @@ body,
 .message-assistant {
   display: block;
   padding: 8px 0 32px;
-  margin-left: calc(-1 * var(--content-inset));
-  margin-right: calc(-1 * var(--content-inset));
-  padding-left: var(--content-inset);
-  padding-right: var(--content-inset);
+  min-width: 0;
 }
 
 /* ===================================================
@@ -266,8 +264,6 @@ body,
   flex-direction: column;
   gap: 12px;
   margin-top: 16px;
-  margin-left: calc(-1 * var(--content-inset));
-  margin-right: calc(-1 * var(--content-inset));
 }
 
 .columns-grid {
@@ -276,22 +272,11 @@ body,
   gap: 12px;
   align-items: stretch;
   padding-bottom: 12px;
-  padding-left: var(--content-inset);
-  padding-right: var(--content-inset);
-  overflow-x: auto;
 }
 
-.columns-grid::-webkit-scrollbar {
-  height: 4px;
-}
-
-.columns-grid::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 0 var(--content-inset);
-}
-
-.columns-grid::-webkit-scrollbar-thumb {
-  background: rgba(26, 26, 26, 0.25);
+.columns-grid::after {
+  content: "";
+  flex: 0 0 var(--content-inset);
 }
 
 /* ===================================================
@@ -312,10 +297,10 @@ body,
 
 .column-card.expanded {
   flex: 0 0 auto;
-  width: calc(100% - 2 * var(--content-inset));
+  width: 100%;
   max-height: none;
-  margin-left: var(--content-inset);
-  margin-right: var(--content-inset);
+  position: sticky;
+  left: 0;
 }
 
 .column-card.loading {
