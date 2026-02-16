@@ -203,6 +203,22 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
     return () => row.removeEventListener("scroll", onScroll);
   }, [scrollLeftRef]);
 
+  const removeColumn = (id: string) => {
+    const col = draftConfig.find((c) => c.id === id);
+    if (!col) return;
+    dispatch({ type: "remove", id });
+    // Strip dangling context refs from remaining columns
+    for (const other of draftConfig) {
+      if (other.id === id) continue;
+      const cleaned = other.context.filter(
+        (ref) => ref.column !== col.name
+      );
+      if (cleaned.length < other.context.length) {
+        dispatch({ type: "update", id: other.id, changes: { context: cleaned } });
+      }
+    }
+  };
+
   const addColumn = () => {
     const usedColors = new Set(draftConfig.map((c) => c.color));
     const color = PRESET_COLORS.find((c) => !usedColors.has(c)) ?? PRESET_COLORS[0];
@@ -295,7 +311,7 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
               fullConfig={draftConfig}
               autoFocusName={isNew}
               onUpdate={(changes) => dispatch({ type: "update", id: col.id, changes })}
-              onDelete={() => dispatch({ type: "remove", id: col.id })}
+              onDelete={() => removeColumn(col.id)}
               onMoveLeft={() => dispatch({ type: "move", id: col.id, direction: -1 })}
               onMoveRight={() => dispatch({ type: "move", id: col.id, direction: 1 })}
             />
