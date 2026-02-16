@@ -162,7 +162,7 @@ export function useColumnar(chatId: string): ColumnarState {
     [appliedConfig]
   );
 
-  const isDirty = mutations.length > 0;
+  const isDirty = JSON.stringify(draftConfig) !== JSON.stringify(appliedConfig);
   const validationError = useMemo(() => validateConfig(draftConfig), [draftConfig]);
   const canApply = isDirty && !isRunning && !validationError && (mode === "cloud" || !!apiKey);
 
