@@ -1,21 +1,22 @@
 import { describe, test, expect } from "bun:test";
 import { source, column, self } from "../column.js";
-import { assembleMessages, resolveViews, type Store } from "../context.js";
+import { assembleMessages, resolveViews } from "../context.js";
 import type { Column, Message } from "../types.js";
 
-// Helper: create a store from a record of column -> values
-function makeStore(entries: [Column, string[]][]): Store {
-  return new Map(entries);
+// Helper: populate a column's storage with values
+function populate(col: Column, values: string[]): void {
+  for (const v of values) {
+    col.storage.push(v);
+  }
 }
 
 // Helper: resolve views and assemble messages
 function assemble(
   col: ReturnType<typeof column>,
   currentStep: number,
-  store: Store
 ): Message[] {
   const resolved = resolveViews(col.context, col);
-  return assembleMessages(resolved, currentStep, store);
+  return assembleMessages(resolved, currentStep);
 }
 
 describe("context assembly", () => {
@@ -27,12 +28,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["Hello", "What's TypeScript?", "Thanks"]],
-      [assistant, ["Hi! How can I help?", "TypeScript is a..."]],
-    ]);
+    populate(user, ["Hello", "What's TypeScript?", "Thanks"]);
+    populate(assistant, ["Hi! How can I help?", "TypeScript is a..."]);
 
-    const messages = assemble(assistant, 2, store);
+    const messages = assemble(assistant, 2);
     expect(messages).toEqual([
       { role: "user", content: "Hello" },
       { role: "assistant", content: "Hi! How can I help?" },
@@ -50,19 +49,17 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["Hello", "Let's discuss Rust", "And memory safety"]],
-      [topics, ["greetings", "Rust, programming"]],
-    ]);
+    populate(user, ["Hello", "Let's discuss Rust", "And memory safety"]);
+    populate(topics, ["greetings", "Rust, programming"]);
 
     // At step 2
-    const messages = assemble(topics, 2, store);
+    const messages = assemble(topics, 2);
     expect(messages).toEqual([
       { role: "user", content: "And memory safety" },
     ]);
 
     // At step 1
-    const messages1 = assemble(topics, 1, store);
+    const messages1 = assemble(topics, 1);
     expect(messages1).toEqual([
       { role: "user", content: "Let's discuss Rust" },
     ]);
@@ -76,12 +73,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["I'm considering Rust", "For the backend rewrite", "Because Python is slow"]],
-      [summary, ["User is considering Rust.", "User wants to rewrite the backend in Rust."]],
-    ]);
+    populate(user, ["I'm considering Rust", "For the backend rewrite", "Because Python is slow"]);
+    populate(summary, ["User is considering Rust.", "User wants to rewrite the backend in Rust."]);
 
-    const messages0 = assemble(summary, 0, store);
+    const messages0 = assemble(summary, 0);
     expect(messages0).toEqual([
       { role: "user", content: "I'm considering Rust" },
     ]);
@@ -94,12 +89,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["I'm considering Rust", "For the backend rewrite", "Because Python is slow"]],
-      [summary, ["User is considering Rust.", "User wants to rewrite the backend in Rust."]],
-    ]);
+    populate(user, ["I'm considering Rust", "For the backend rewrite", "Because Python is slow"]);
+    populate(summary, ["User is considering Rust.", "User wants to rewrite the backend in Rust."]);
 
-    const messages1 = assemble(summary, 1, store);
+    const messages1 = assemble(summary, 1);
     expect(messages1).toEqual([
       { role: "user", content: "I'm considering Rust" },
       { role: "assistant", content: "User is considering Rust." },
@@ -114,12 +107,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["I'm considering Rust", "For the backend rewrite", "Because Python is slow"]],
-      [summary, ["User is considering Rust.", "User wants to rewrite the backend in Rust."]],
-    ]);
+    populate(user, ["I'm considering Rust", "For the backend rewrite", "Because Python is slow"]);
+    populate(summary, ["User is considering Rust.", "User wants to rewrite the backend in Rust."]);
 
-    const messages2 = assemble(summary, 2, store);
+    const messages2 = assemble(summary, 2);
     expect(messages2).toEqual([
       { role: "user", content: "I'm considering Rust\n\nFor the backend rewrite" },
       { role: "assistant", content: "User wants to rewrite the backend in Rust." },
@@ -137,12 +128,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["I'm considering Rust", "Because Python is slow"]],
-      [summaryCol, ["User is considering Rust.", "User wants to rewrite backend in Rust..."]],
-    ]);
+    populate(user, ["I'm considering Rust", "Because Python is slow"]);
+    populate(summaryCol, ["User is considering Rust.", "User wants to rewrite backend in Rust..."]);
 
-    const messages = assemble(critique, 1, store);
+    const messages = assemble(critique, 1);
     expect(messages).toEqual([
       {
         role: "user",
@@ -162,13 +151,11 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["I like Rust", "And Go is nice", "Maybe Zig too"]],
-      [topics, ["Rust", "Go", "Zig"]],
-      [analysis, ["User mentions Rust.", "Expanded to Go."]],
-    ]);
+    populate(user, ["I like Rust", "And Go is nice", "Maybe Zig too"]);
+    populate(topics, ["Rust", "Go", "Zig"]);
+    populate(analysis, ["User mentions Rust.", "Expanded to Go."]);
 
-    const messages = assemble(analysis, 2, store);
+    const messages = assemble(analysis, 2);
     expect(messages).toEqual([
       {
         role: "user",
@@ -197,12 +184,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["We should use Rust", "Python is too slow"]],
-      [steelman, ["Rust offers memory safety...", "Python's GIL limits..."]],
-    ]);
+    populate(user, ["We should use Rust", "Python is too slow"]);
+    populate(steelman, ["Rust offers memory safety...", "Python's GIL limits..."]);
 
-    const messages = assemble(critic, 1, store);
+    const messages = assemble(critic, 1);
     expect(messages).toEqual([
       { role: "user", content: "Python's GIL limits..." },
     ]);
@@ -216,12 +201,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["Alpha", "Beta", "Gamma", "Delta"]],
-      [recent, ["Mentioned alpha.", "Alpha, then beta.", "Beta, then gamma."]],
-    ]);
+    populate(user, ["Alpha", "Beta", "Gamma", "Delta"]);
+    populate(recent, ["Mentioned alpha.", "Alpha, then beta.", "Beta, then gamma."]);
 
-    const messages = assemble(recent, 3, store);
+    const messages = assemble(recent, 3);
     expect(messages).toEqual([
       { role: "user", content: "Gamma" },
       { role: "assistant", content: "Beta, then gamma." },
@@ -240,14 +223,12 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["msg0", "msg1", "msg2"]],
-      [summaryCol, ["s0", "s1", "s2"]],
-    ]);
+    populate(user, ["msg0", "msg1", "msg2"]);
+    populate(summaryCol, ["s0", "s1", "s2"]);
 
     // At step 2: user contributes steps 0-2, summary only step 2
     // All user messages merge since there are no assistant messages between them
-    const messages = assemble(col, 2, store);
+    const messages = assemble(col, 2);
     expect(messages).toEqual([
       {
         role: "user",
@@ -267,12 +248,10 @@ describe("context assembly", () => {
       compute: async () => "",
     });
 
-    const store = makeStore([
-      [user, ["hello"]],
-      [summaryCol, ["sum"]],
-    ]);
+    populate(user, ["hello"]);
+    populate(summaryCol, ["sum"]);
 
-    const messages = assemble(col, 0, store);
+    const messages = assemble(col, 0);
     expect(messages).toEqual([
       {
         role: "user",

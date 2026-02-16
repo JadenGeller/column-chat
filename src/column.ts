@@ -1,17 +1,26 @@
 import type {
   WindowMode,
   ColumnView,
+  ColumnStorage,
   SourceColumn,
   DerivedColumn,
   ComputeFunction,
 } from "./types.js";
 import { SELF_MARKER } from "./types.js";
 
-// Internal storage for source column values
-const sourceValues = new WeakMap<SourceColumn, string[]>();
-
-export function getSourceValues(col: SourceColumn): string[] {
-  return sourceValues.get(col)!;
+export function createInMemoryStorage(): ColumnStorage {
+  const values: string[] = [];
+  return {
+    get(step: number): string | undefined {
+      return step < values.length ? values[step] : undefined;
+    },
+    push(value: string): void {
+      values.push(value);
+    },
+    get length(): number {
+      return values.length;
+    },
+  };
 }
 
 // Create a view object with chaining methods
@@ -36,12 +45,17 @@ function createView(
   };
 }
 
-export function source(name: string): SourceColumn {
+export function source(
+  name: string,
+  options?: { storage?: ColumnStorage }
+): SourceColumn {
+  const storage = options?.storage ?? createInMemoryStorage();
   const col = {
     ...createView(null as any, { kind: "all" }, name),
     kind: "source" as const,
+    storage,
     push(value: string): void {
-      sourceValues.get(col)!.push(value);
+      storage.push(value);
     },
   } as SourceColumn;
 
@@ -57,17 +71,18 @@ export function source(name: string): SourceColumn {
   col.window = (n: number) => createView(col, { kind: "window", n }, name);
   col.as = (newName: string) => createView(col, { kind: "all" }, newName);
 
-  sourceValues.set(col, []);
   return col;
 }
 
 export function column(
   name: string,
-  options: { context: ColumnView[]; compute: ComputeFunction }
+  options: { context: ColumnView[]; compute: ComputeFunction; storage?: ColumnStorage }
 ): DerivedColumn {
+  const storage = options.storage ?? createInMemoryStorage();
   const col = {
     ...createView(null as any, { kind: "all" }, name),
     kind: "derived" as const,
+    storage,
     context: options.context,
     compute: options.compute,
   } as DerivedColumn;

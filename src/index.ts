@@ -1,4 +1,4 @@
-export { source, column, self } from "./column.js";
+export { source, column, self, createInMemoryStorage } from "./column.js";
 export { flow } from "./flow.js";
 export { prompt } from "./prompt.js";
 
@@ -7,6 +7,7 @@ export type {
   ComputeFunction,
   FlowEvent,
   ColumnView,
+  ColumnStorage,
   SourceColumn,
   DerivedColumn,
   Column,

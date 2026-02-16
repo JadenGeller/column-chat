@@ -7,9 +7,6 @@ import type {
 } from "./types.js";
 import { SELF_MARKER } from "./types.js";
 
-// Store interface — maps columns to their values at each step
-export type Store = Map<Column, string[]>;
-
 // Resolve a ColumnView into a ResolvedView, replacing SELF_MARKER with the actual column
 export function resolveViews(
   context: ColumnView[],
@@ -56,7 +53,6 @@ function stepRange(
 export function assembleMessages(
   resolvedViews: ResolvedView[],
   currentStep: number,
-  store: Store
 ): Message[] {
   const selfView = resolvedViews.find((v) => v.isSelf);
   const inputViews = resolvedViews.filter((v) => !v.isSelf);
@@ -88,11 +84,11 @@ export function assembleMessages(
     const inputParts: { name: string; content: string }[] = [];
     for (let i = 0; i < inputViews.length; i++) {
       if (inputStepRanges[i].has(step)) {
-        const values = store.get(inputViews[i].column);
-        if (values && step < values.length) {
+        const value = inputViews[i].column.storage.get(step);
+        if (value !== undefined) {
           inputParts.push({
             name: inputViews[i].name,
-            content: values[step],
+            content: value,
           });
         }
       }
@@ -112,9 +108,9 @@ export function assembleMessages(
 
     // Self value at this step
     if (selfSteps.has(step)) {
-      const values = store.get(selfView!.column);
-      if (values && step < values.length) {
-        rawMessages.push({ role: "assistant", content: values[step] });
+      const value = selfView!.column.storage.get(step);
+      if (value !== undefined) {
+        rawMessages.push({ role: "assistant", content: value });
       }
     }
   }

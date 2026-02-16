@@ -4,13 +4,9 @@ import type {
   DerivedColumn,
   SourceColumn,
   FlowEvent,
-  ResolvedView,
 } from "./types.js";
-import { SELF_MARKER } from "./types.js";
-import { isSelfView, getSourceValues } from "./column.js";
+import { isSelfView } from "./column.js";
 import { assembleMessages, resolveViews } from "./context.js";
-
-type Store = Map<Column, string[]>;
 
 interface Flow {
   run(): AsyncIterable<FlowEvent> & PromiseLike<void>;
@@ -115,42 +111,27 @@ export function flow(...leaves: Column[]): Flow {
   let sortedDerived = topoSort(derived, allSet);
   const nameMap = buildNameMap(all);
 
-  const store: Store = new Map();
-  for (const col of all) {
-    store.set(col, []);
-  }
-
   // Track how many steps have been computed
   let computedSteps = 0;
 
   function run(): AsyncIterable<FlowEvent> & PromiseLike<void> {
     const iterable = {
       async *[Symbol.asyncIterator](): AsyncGenerator<FlowEvent> {
-        // Sync source buffers into store
-        for (const src of sources) {
-          const buffer = getSourceValues(src);
-          const storeValues = store.get(src)!;
-          while (storeValues.length < buffer.length) {
-            storeValues.push(buffer[storeValues.length]);
-          }
-        }
-
         // Determine how many steps we can compute
         const maxSteps = Math.min(
-          ...sources.map((s) => store.get(s)!.length)
+          ...sources.map((s) => s.storage.length)
         );
 
         // Process new steps
         for (let step = computedSteps; step < maxSteps; step++) {
           for (const col of sortedDerived) {
-            const colValues = store.get(col)!;
-            if (step < colValues.length) continue; // already computed
+            if (step < col.storage.length) continue; // already computed
 
             const resolved = resolveViews(col.context, col);
-            const messages = assembleMessages(resolved, step, store);
+            const messages = assembleMessages(resolved, step);
             const value = await col.compute({ messages });
 
-            colValues.push(value);
+            col.storage.push(value);
 
             yield { column: col._name, step, value };
           }
@@ -179,9 +160,7 @@ export function flow(...leaves: Column[]): Flow {
   function get(name: string, step: number): string | undefined {
     const col = nameMap.get(name);
     if (!col) return undefined;
-    const values = store.get(col);
-    if (!values || step >= values.length) return undefined;
-    return values[step];
+    return col.storage.get(step);
   }
 
   async function addColumn(col: DerivedColumn): Promise<void> {
@@ -199,18 +178,16 @@ export function flow(...leaves: Column[]): Flow {
     allSet.add(col);
     derived.push(col);
     nameMap.set(col._name, col);
-    store.set(col, []);
 
     // Re-sort
     sortedDerived = topoSort(derived, allSet);
 
     // Backfill all completed steps
-    const colValues = store.get(col)!;
     for (let step = 0; step < computedSteps; step++) {
       const resolved = resolveViews(col.context, col);
-      const messages = assembleMessages(resolved, step, store);
+      const messages = assembleMessages(resolved, step);
       const value = await col.compute({ messages });
-      colValues.push(value);
+      col.storage.push(value);
     }
   }
 

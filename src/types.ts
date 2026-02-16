@@ -15,6 +15,13 @@ export type ComputeFunction = (args: {
   messages: Message[];
 }) => string | Promise<string>;
 
+// Pluggable storage for column values
+export interface ColumnStorage {
+  get(step: number): string | undefined;
+  push(value: string): void;
+  readonly length: number;
+}
+
 // Events yielded by run()
 export type FlowEvent = {
   column: string;
@@ -38,11 +45,13 @@ export interface ColumnView {
 
 export interface SourceColumn extends ColumnView {
   readonly kind: "source";
+  readonly storage: ColumnStorage;
   push(value: string): void;
 }
 
 export interface DerivedColumn extends ColumnView {
   readonly kind: "derived";
+  readonly storage: ColumnStorage;
   readonly context: ColumnView[];
   readonly compute: ComputeFunction;
 }
