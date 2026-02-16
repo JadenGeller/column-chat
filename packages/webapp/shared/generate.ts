@@ -203,6 +203,7 @@ export function configToMutations(
   appliedConfig: SessionConfig,
 ): Mutation[] {
   const mutations: Mutation[] = [];
+  const appliedByName = new Map(appliedConfig.map((c) => [c.name, c]));
   const usedColors = new Set<string>();
 
   function pickColor(preferred: string): string {
@@ -217,17 +218,19 @@ export function configToMutations(
     return color;
   }
 
-  // Remove all existing columns first, then add generated ones in order.
-  // This guarantees the result matches the AI's topological ordering.
+  // Remove all existing columns to clear positions, then re-add in the
+  // AI's topological order — reusing IDs where names match so the change
+  // summary shows "modified" instead of "deleted + added".
   for (const applied of appliedConfig) {
     mutations.push({ type: "remove", id: applied.id });
   }
 
   for (const gen of generated) {
+    const existing = appliedByName.get(gen.name);
     mutations.push({
       type: "add",
       config: {
-        id: columnId(),
+        id: existing?.id ?? columnId(),
         name: gen.name,
         systemPrompt: gen.systemPrompt,
         reminder: gen.reminder,
