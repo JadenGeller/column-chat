@@ -566,7 +566,7 @@ body,
 }
 
 .column-card-bar:hover {
-  filter: brightness(0.85);
+  filter: brightness(1.2);
 }
 
 /* Column name — vertical text */
