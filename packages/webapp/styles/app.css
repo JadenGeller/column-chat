@@ -366,6 +366,7 @@ body,
   max-height: 480px;
   flex: 0 0 400px;
   width: 400px;
+  transition: filter 0.15s ease;
 }
 
 .column-card.expanded {
@@ -378,6 +379,10 @@ body,
 
 .column-card.loading {
   opacity: 0.65;
+}
+
+.column-card.dimmed {
+  filter: grayscale(1);
 }
 
 /* Empty state card */

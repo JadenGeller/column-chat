@@ -14,6 +14,7 @@ export function useColumnarRuntime(
   columnColors: Record<string, string>,
   columnPrompts: Record<string, string>,
   columnDeps: Record<string, string[]>,
+  columnContext: Record<string, { column: string; row: string }[]>,
   isRunning: boolean,
   sendMessage: (text: string) => void
 ) {
@@ -37,6 +38,7 @@ export function useColumnarRuntime(
       columnColors,
       columnPrompts,
       columnDeps,
+      columnContext,
       computing: [...step.computing],
       isRunning: step.isRunning,
       error: step.error,

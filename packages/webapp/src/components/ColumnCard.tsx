@@ -11,14 +11,17 @@ interface ColumnCardProps {
   status: "waiting" | "computing" | "done";
   dependencies?: { name: string; done: boolean }[];
   expanded?: boolean;
+  dimmed?: boolean;
   onToggle?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function ColumnCard({ name, value, color, prompt, index, status, dependencies, expanded, onToggle }: ColumnCardProps) {
+export function ColumnCard({ name, value, color, prompt, index, status, dependencies, expanded, dimmed, onToggle, onMouseEnter, onMouseLeave }: ColumnCardProps) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = displayName(name);
@@ -41,7 +44,12 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
   const wordCount = value ? countWords(value) : 0;
 
   return (
-    <div className={`column-card ${isLoading ? "loading" : ""} ${expanded ? "expanded" : ""}`} style={style}>
+    <div
+      className={`column-card ${isLoading ? "loading" : ""} ${expanded ? "expanded" : ""} ${dimmed ? "dimmed" : ""}`}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
       <button
         className="column-card-bar"
         onClick={onToggle}

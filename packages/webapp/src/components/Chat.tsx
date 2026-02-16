@@ -20,17 +20,20 @@ const FocusContext = createContext<{
 
 const ChatActionsContext = createContext<{
   addColumnAndEdit: () => void;
-}>({ addColumnAndEdit: () => {} });
+  hovered: { column: string; step: number } | null;
+  setHovered: (h: { column: string; step: number } | null) => void;
+}>({ addColumnAndEdit: () => {}, hovered: null, setHovered: () => {} });
 
 interface ChatProps {
   state: ColumnarState;
 }
 
 export function Chat({ state }: ChatProps) {
-  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setEditing, dispatch, draftConfig } = state;
-  const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage);
+  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage, clearChat, setEditing, dispatch, draftConfig } = state;
+  const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage);
   const [focused, setFocusedRaw] = useState<string | null>(null);
   const [focusColor, setFocusColor] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<{ column: string; step: number } | null>(null);
 
   const setFocused = useCallback((name: string | null, color?: string) => {
     setFocusedRaw(name);
@@ -60,7 +63,7 @@ export function Chat({ state }: ChatProps) {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <ChatActionsContext.Provider value={{ addColumnAndEdit }}>
+      <ChatActionsContext.Provider value={{ addColumnAndEdit, hovered, setHovered }}>
       <FocusContext.Provider value={{ focused, focusColor, setFocused }}>
       <ThreadPrimitive.Root className="thread-root">
         <ThreadPrimitive.Viewport className="thread-viewport">
@@ -168,7 +171,7 @@ const EMPTY_MESSAGES = [
 
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
   const { focused, setFocused } = useContext(FocusContext);
-  const { addColumnAndEdit } = useContext(ChatActionsContext);
+  const { addColumnAndEdit, hovered, setHovered } = useContext(ChatActionsContext);
 
   const toggle = useCallback((name: string, color?: string) => {
     setFocused(focused === name ? null : name, color);
@@ -182,6 +185,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       columnColors: Record<string, string>;
       columnPrompts: Record<string, string>;
       columnDeps: Record<string, string[]>;
+      columnContext: Record<string, { column: string; row: string }[]>;
       computing: string[];
       isRunning: boolean;
       error?: string;
@@ -242,6 +246,27 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       );
     }
 
+    // Determine which cards at this step are in context for the hovered card
+    function isDimmed(name: string): boolean {
+      if (!hovered) return false;
+      const { column: hCol, step: hStep } = hovered;
+      const step = data.stepIndex;
+      // The hovered card itself
+      if (name === hCol && step === hStep) return false;
+      // Cards after the hovered step are always dimmed
+      if (step > hStep) return true;
+      // Check if this card (name, step) is in the hovered column's context
+      const refs = data.columnContext[hCol];
+      if (!refs) return true;
+      for (const ref of refs) {
+        const refCol = ref.column === "self" ? hCol : ref.column;
+        if (refCol !== name) continue;
+        const maxStep = ref.row === "previous" ? hStep - 1 : hStep;
+        if (step <= maxStep) return false;
+      }
+      return true;
+    }
+
     // Normal mode: all columns in the grid
     return (
       <div className="columns-layout">
@@ -256,7 +281,10 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
               index={data.columnOrder.indexOf(name)}
               status={cardStatus(name)}
               dependencies={cardDeps(name)}
+              dimmed={isDimmed(name)}
               onToggle={() => toggle(name, data.columnColors[name])}
+              onMouseEnter={() => setHovered({ column: name, step: data.stepIndex })}
+              onMouseLeave={() => setHovered(null)}
             />
           ))}
         </div>

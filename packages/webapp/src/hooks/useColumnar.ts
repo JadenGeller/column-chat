@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { SessionConfig, Capabilities, Mutation } from "../../shared/types.js";
+import type { SessionConfig, Capabilities, Mutation, ColumnContextRef } from "../../shared/types.js";
 import { overlay, validateConfig } from "../../shared/types.js";
 
 export interface Step {
@@ -16,6 +16,7 @@ export interface ColumnarState {
   columnColors: Record<string, string>;
   columnPrompts: Record<string, string>;
   columnDeps: Record<string, string[]>;
+  columnContext: Record<string, ColumnContextRef[]>;
   isRunning: boolean;
   sendMessage: (text: string) => void;
   clearChat: () => void;
@@ -55,14 +56,16 @@ function deriveFromConfig(config: SessionConfig) {
   const columnColors: Record<string, string> = {};
   const columnPrompts: Record<string, string> = {};
   const columnDeps: Record<string, string[]> = {};
+  const columnContext: Record<string, ColumnContextRef[]> = {};
   for (const col of config) {
     columnColors[col.name] = col.color;
     columnPrompts[col.name] = col.systemPrompt;
     columnDeps[col.name] = col.context
       .map((ref) => ref.column)
       .filter((c) => c !== "input" && c !== "self");
+    columnContext[col.name] = col.context;
   }
-  return { columnOrder, columnColors, columnPrompts, columnDeps };
+  return { columnOrder, columnColors, columnPrompts, columnDeps, columnContext };
 }
 
 // SSE stream reader helper
@@ -154,7 +157,7 @@ export function useColumnar(chatId: string): ColumnarState {
     [appliedConfig, mutations]
   );
 
-  const { columnOrder, columnColors, columnPrompts, columnDeps } = useMemo(
+  const { columnOrder, columnColors, columnPrompts, columnDeps, columnContext } = useMemo(
     () => deriveFromConfig(appliedConfig),
     [appliedConfig]
   );
@@ -564,6 +567,7 @@ export function useColumnar(chatId: string): ColumnarState {
     columnColors,
     columnPrompts,
     columnDeps,
+    columnContext,
     isRunning,
     sendMessage,
     clearChat,
