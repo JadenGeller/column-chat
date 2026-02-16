@@ -24,8 +24,6 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
   const label = displayName(name);
   const isLoading = status !== "done";
 
-  const sectionNumber = String(index + 1).padStart(2, "0");
-
   const showTooltip = useCallback(() => {
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -49,7 +47,6 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
         onClick={onToggle}
         aria-label={expanded ? "Collapse" : "Expand"}
       >
-        <span className="column-card-number">{sectionNumber}</span>
         <span className="column-card-bar-label">{label}</span>
       </button>
       <div className="column-card-content">

@@ -32,13 +32,11 @@ export function ColumnConfigCard({
     onDelete();
   };
 
-  const sectionNumber = String(index + 1).padStart(2, "0");
   const label = displayName(config.name);
 
   return (
     <div className="config-card" style={{ "--column-color": config.color } as React.CSSProperties}>
       <div className="column-card-bar">
-        <span className="column-card-number">{sectionNumber}</span>
         <span className="column-card-bar-label">{label}</span>
       </div>
       <div className="column-card-content">

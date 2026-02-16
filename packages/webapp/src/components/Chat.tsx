@@ -4,6 +4,7 @@ import {
   ThreadPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
+  useMessage,
 } from "@assistant-ui/react";
 import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
@@ -76,9 +77,13 @@ export function Chat({ state }: ChatProps) {
 }
 
 const UserMessage: FC = () => {
+  const id = useMessage((m) => m.id);
+  const stepIndex = parseInt(id.replace("user-", ""), 10);
+  const label = String(stepIndex + 1).padStart(2, "0");
+
   return (
     <MessagePrimitive.Root className="message-user">
-      <div className="message-user-label">Input</div>
+      <div className="message-user-label">{label}</div>
       <div className="message-user-content">
         <MessagePrimitive.Content />
       </div>

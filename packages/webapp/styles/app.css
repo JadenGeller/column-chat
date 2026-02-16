@@ -423,16 +423,6 @@ body,
   filter: brightness(0.85);
 }
 
-/* Section number at top of bar */
-.column-card-number {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--cream);
-  margin-bottom: 8px;
-  flex-shrink: 0;
-}
-
 /* Column name — vertical text */
 .column-card-bar-label {
   font-family: var(--font-display);
