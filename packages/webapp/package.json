@@ -1,0 +1,26 @@
+{
+  "name": "columnar-webapp",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bunx vite",
+    "dev:server": "bun run --watch server/index.ts"
+  },
+  "dependencies": {
+    "columnar": "workspace:*",
+    "elysia": "^1.2",
+    "@elysiajs/cors": "^1.2",
+    "ai": "^4.0",
+    "@ai-sdk/anthropic": "^1.0",
+    "react": "^19",
+    "react-dom": "^19",
+    "@assistant-ui/react": "^0.10"
+  },
+  "devDependencies": {
+    "vite": "^6",
+    "@vitejs/plugin-react": "^4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.7"
+  }
+}

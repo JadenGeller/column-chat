@@ -1,5 +1,5 @@
 export { source, column, self, inMemoryStorage } from "./column.js";
-export { flow } from "./flow.js";
+export { flow, type Flow } from "./flow.js";
 export { prompt } from "./prompt.js";
 
 export type {

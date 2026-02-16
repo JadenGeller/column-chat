@@ -8,7 +8,7 @@ import type {
 import { isSelfView } from "./column.js";
 import { assembleMessages, resolveViews } from "./context.js";
 
-interface Flow {
+export interface Flow {
   run(): AsyncIterable<FlowEvent> & PromiseLike<void>;
   get(name: string, step: number): string | undefined;
   addColumn(col: DerivedColumn): Promise<void>;
