@@ -279,18 +279,25 @@ body,
 }
 
 /* ===================================================
-   COLUMNS GRID — HORIZONTAL LAYOUT
+   COLUMNS LAYOUT — EXPANDED + HORIZONTAL STRIP
    =================================================== */
+
+.columns-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  margin-left: -64px;
+  margin-right: -64px;
+  padding: 0 64px;
+}
 
 .columns-grid {
   display: flex;
   flex-direction: row;
   gap: 12px;
   align-items: stretch;
-  margin-top: 16px;
-  margin-left: -64px;
-  margin-right: -64px;
-  padding: 0 64px 12px;
+  padding-bottom: 12px;
   overflow-x: auto;
 }
 
@@ -300,7 +307,7 @@ body,
 
 .columns-grid::-webkit-scrollbar-track {
   background: transparent;
-  margin: 0 80px;
+  margin: 0 16px;
 }
 
 .columns-grid::-webkit-scrollbar-thumb {
@@ -323,10 +330,10 @@ body,
   width: 320px;
 }
 
-
-.column-card.collapsed {
+.column-card.expanded {
   flex: 0 0 auto;
-  width: auto;
+  width: 100%;
+  max-height: none;
 }
 
 .column-card.loading {

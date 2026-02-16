@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { useState, useCallback, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -97,6 +97,17 @@ function AssistantMessageContent() {
 }
 
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
+  const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
+
+  const toggle = useCallback((name: string) => {
+    setExpandedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
   try {
     const data = JSON.parse(text) as {
       stepIndex: number;
@@ -112,18 +123,38 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       return <div className="step-error">{data.error}</div>;
     }
 
+    const expanded = data.columnOrder.filter((n) => expandedSet.has(n));
+    const compact = data.columnOrder.filter((n) => !expandedSet.has(n));
+
     return (
-      <div className="columns-grid">
-        {data.columnOrder.map((name, index) => (
+      <div className="columns-layout">
+        {expanded.map((name) => (
           <ColumnCard
             key={name}
             name={name}
             value={data.columns[name]}
             color={data.columnColors[name]}
             prompt={data.columnPrompts[name]}
-            index={index}
+            index={data.columnOrder.indexOf(name)}
+            expanded
+            onToggle={() => toggle(name)}
           />
         ))}
+        {compact.length > 0 && (
+          <div className="columns-grid">
+            {compact.map((name) => (
+              <ColumnCard
+                key={name}
+                name={name}
+                value={data.columns[name]}
+                color={data.columnColors[name]}
+                prompt={data.columnPrompts[name]}
+                index={data.columnOrder.indexOf(name)}
+                onToggle={() => toggle(name)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   } catch {

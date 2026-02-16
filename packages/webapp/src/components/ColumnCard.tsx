@@ -8,14 +8,15 @@ interface ColumnCardProps {
   color?: string;
   prompt?: string;
   index: number;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProps) {
-  const [collapsed, setCollapsed] = useState(false);
+export function ColumnCard({ name, value, color, prompt, index, expanded, onToggle }: ColumnCardProps) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = displayName(name);
@@ -40,62 +41,60 @@ export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProp
   const wordCount = value ? countWords(value) : 0;
 
   return (
-    <div className={`column-card ${isLoading ? "loading" : ""} ${collapsed ? "collapsed" : ""}`} style={style}>
+    <div className={`column-card ${isLoading ? "loading" : ""} ${expanded ? "expanded" : ""}`} style={style}>
       <button
         className="column-card-bar"
-        onClick={() => setCollapsed(!collapsed)}
-        aria-label={collapsed ? "Expand" : "Collapse"}
+        onClick={onToggle}
+        aria-label={expanded ? "Collapse" : "Expand"}
       >
         <span className="column-card-number">{sectionNumber}</span>
         <span className="column-card-bar-label">{label}</span>
       </button>
-      {!collapsed && (
-        <div className="column-card-content">
-          {prompt && (
-            <div className="column-card-toolbar">
-              <button
-                ref={buttonRef}
-                className="prompt-hint-button"
-                onMouseEnter={showTooltip}
-                onMouseLeave={hideTooltip}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  tooltipStyle ? hideTooltip() : showTooltip();
-                }}
-                aria-label="View system prompt"
-              >
-                ?
-              </button>
-            </div>
-          )}
-          <div className="column-card-body">
-            {isLoading ? (
-              <div className="column-card-spinner">Computing...</div>
-            ) : (
-              <div className="column-card-value">
-                {value}
-              </div>
-            )}
+      <div className="column-card-content">
+        {prompt && (
+          <div className="column-card-toolbar">
+            <button
+              ref={buttonRef}
+              className="prompt-hint-button"
+              onMouseEnter={showTooltip}
+              onMouseLeave={hideTooltip}
+              onClick={(e) => {
+                e.stopPropagation();
+                tooltipStyle ? hideTooltip() : showTooltip();
+              }}
+              aria-label="View system prompt"
+            >
+              ?
+            </button>
           </div>
-          {!isLoading && value && (
-            <div className="column-card-footnote">
-              <span>{wordCount} words</span>
+        )}
+        <div className="column-card-body">
+          {isLoading ? (
+            <div className="column-card-spinner">Computing...</div>
+          ) : (
+            <div className="column-card-value">
+              {value}
             </div>
           )}
-          {tooltipStyle &&
-            createPortal(
-              <div
-                className="prompt-tooltip"
-                style={tooltipStyle}
-                onMouseEnter={showTooltip}
-                onMouseLeave={hideTooltip}
-              >
-                {prompt}
-              </div>,
-              document.body
-            )}
         </div>
-      )}
+        {!isLoading && value && (
+          <div className="column-card-footnote">
+            <span>{wordCount} words</span>
+          </div>
+        )}
+        {tooltipStyle &&
+          createPortal(
+            <div
+              className="prompt-tooltip"
+              style={tooltipStyle}
+              onMouseEnter={showTooltip}
+              onMouseLeave={hideTooltip}
+            >
+              {prompt}
+            </div>,
+            document.body
+          )}
+      </div>
     </div>
   );
 }
