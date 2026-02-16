@@ -1,4 +1,4 @@
-import { useState, useCallback, useContext, createContext, type FC } from "react";
+import { useState, useCallback, useContext, useEffect, useRef, createContext, type FC } from "react";
 import { createPortal } from "react-dom";
 import {
   AssistantRuntimeProvider,
@@ -33,7 +33,26 @@ export function Chat({ state }: ChatProps) {
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage);
   const [focused, setFocusedRaw] = useState<string | null>(null);
   const [focusColor, setFocusColor] = useState<string | null>(null);
-  const [hovered, setHovered] = useState<{ column: string; step: number } | null>(null);
+  const [hovered, setHoveredRaw] = useState<{ column: string; step: number } | null>(null);
+  const hoveredRef = useRef(hovered);
+  hoveredRef.current = hovered;
+
+  const setHovered = useCallback((h: { column: string; step: number } | null) => {
+    // Skip no-op updates to avoid re-renders on mouse move within same card
+    const cur = hoveredRef.current;
+    if (h === null && cur === null) return;
+    if (h && cur && h.column === cur.column && h.step === cur.step) return;
+    setHoveredRaw(h);
+  }, []);
+
+  // Clear hover on scroll
+  useEffect(() => {
+    const viewport = document.querySelector(".thread-viewport");
+    if (!viewport) return;
+    const onScroll = () => setHoveredRaw(null);
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, []);
 
   const setFocused = useCallback((name: string | null, color?: string) => {
     setFocusedRaw(name);
@@ -283,7 +302,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
               dependencies={cardDeps(name)}
               dimmed={isDimmed(name)}
               onToggle={() => toggle(name, data.columnColors[name])}
-              onMouseEnter={() => setHovered({ column: name, step: data.stepIndex })}
+              onMouseMove={() => setHovered({ column: name, step: data.stepIndex })}
               onMouseLeave={() => setHovered(null)}
             />
           ))}

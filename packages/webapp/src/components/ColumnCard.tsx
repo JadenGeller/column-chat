@@ -13,7 +13,7 @@ interface ColumnCardProps {
   expanded?: boolean;
   dimmed?: boolean;
   onToggle?: () => void;
-  onMouseEnter?: () => void;
+  onMouseMove?: () => void;
   onMouseLeave?: () => void;
 }
 
@@ -21,7 +21,7 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function ColumnCard({ name, value, color, prompt, index, status, dependencies, expanded, dimmed, onToggle, onMouseEnter, onMouseLeave }: ColumnCardProps) {
+export function ColumnCard({ name, value, color, prompt, index, status, dependencies, expanded, dimmed, onToggle, onMouseMove, onMouseLeave }: ColumnCardProps) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = displayName(name);
@@ -46,7 +46,7 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
   return (
     <div
       className={`column-card ${isLoading ? "loading" : ""} ${expanded ? "expanded" : ""} ${dimmed ? "dimmed" : ""}`}
-      onMouseEnter={onMouseEnter}
+      onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       style={style}
     >
