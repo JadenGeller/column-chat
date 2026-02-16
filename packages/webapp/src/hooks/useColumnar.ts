@@ -24,8 +24,8 @@ export interface ColumnarState {
   updateDraft: (config: SessionConfig) => void;
   applyConfig: () => Promise<void>;
   resetDraft: () => void;
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
+  editing: boolean;
+  setEditing: (editing: boolean) => void;
   mode: "cloud" | "local" | null;
   apiKey: string | null;
   setApiKey: (key: string) => void;
@@ -124,7 +124,7 @@ export function useColumnar(chatId: string): ColumnarState {
   const [appliedConfig, setAppliedConfig] = useState<SessionConfig>([]);
   const [draftConfig, setDraftConfig] = useState<SessionConfig>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   // Local mode session ref
   const sessionRef = useRef<LocalSession | null>(null);
@@ -348,7 +348,7 @@ export function useColumnar(chatId: string): ColumnarState {
 
   // ---- clearChat ----
   const clearChat = useCallback(() => {
-    window.location.href = "/";
+    window.open("/", "_blank");
   }, []);
 
   const updateDraft = useCallback((config: SessionConfig) => {
@@ -526,8 +526,8 @@ export function useColumnar(chatId: string): ColumnarState {
     updateDraft,
     applyConfig,
     resetDraft,
-    sidebarOpen,
-    setSidebarOpen,
+    editing,
+    setEditing,
     mode,
     apiKey,
     setApiKey,

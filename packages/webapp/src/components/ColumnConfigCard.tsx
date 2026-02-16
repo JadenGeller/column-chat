@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { ColumnConfig, SessionConfig } from "../../shared/types.js";
 import { PRESET_COLORS, displayName } from "../../shared/defaults.js";
 import { ContextEditor } from "./ContextEditor.js";
@@ -10,8 +9,8 @@ interface ColumnConfigCardProps {
   fullConfig: SessionConfig;
   onUpdate: (updates: Partial<ColumnConfig>) => void;
   onDelete: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  onMoveLeft: () => void;
+  onMoveRight: () => void;
 }
 
 export function ColumnConfigCard({
@@ -21,12 +20,9 @@ export function ColumnConfigCard({
   fullConfig,
   onUpdate,
   onDelete,
-  onMoveUp,
-  onMoveDown,
+  onMoveLeft,
+  onMoveRight,
 }: ColumnConfigCardProps) {
-  const [expanded, setExpanded] = useState(false);
-
-  // Columns that appear before this one in the config
   const availableColumns = fullConfig
     .slice(0, index)
     .map((c) => c.name);
@@ -36,49 +32,45 @@ export function ColumnConfigCard({
     onDelete();
   };
 
+  const sectionNumber = String(index + 1).padStart(2, "0");
+  const label = displayName(config.name);
+
   return (
     <div className="config-card" style={{ "--column-color": config.color } as React.CSSProperties}>
-      <div className="config-card-header">
-        <div className="config-card-reorder">
+      <div className="column-card-bar">
+        <span className="column-card-number">{sectionNumber}</span>
+        <span className="column-card-bar-label">{label}</span>
+      </div>
+      <div className="column-card-content">
+        <div className="config-card-toolbar">
+          <div className="config-card-reorder">
+            <button
+              className="config-reorder-btn"
+              onClick={onMoveLeft}
+              disabled={index === 0}
+              aria-label="Move left"
+            >
+              &#8592;
+            </button>
+            <button
+              className="config-reorder-btn"
+              onClick={onMoveRight}
+              disabled={index === totalCount - 1}
+              aria-label="Move right"
+            >
+              &#8594;
+            </button>
+          </div>
           <button
-            className="config-reorder-btn"
-            onClick={onMoveUp}
-            disabled={index === 0}
-            aria-label="Move up"
+            className="config-delete-btn"
+            onClick={handleDelete}
+            disabled={totalCount <= 1}
+            aria-label="Delete column"
           >
-            ^
-          </button>
-          <button
-            className="config-reorder-btn"
-            onClick={onMoveDown}
-            disabled={index === totalCount - 1}
-            aria-label="Move down"
-          >
-            v
+            x
           </button>
         </div>
-        <button
-          className="config-card-title"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <span
-            className="config-color-dot"
-            style={{ background: config.color }}
-          />
-          <span className="config-card-name">{displayName(config.name)}</span>
-          <span className="config-card-toggle">{expanded ? "\u2013" : "+"}</span>
-        </button>
-        <button
-          className="config-delete-btn"
-          onClick={handleDelete}
-          disabled={totalCount <= 1}
-          aria-label="Delete column"
-        >
-          x
-        </button>
-      </div>
 
-      {expanded && (
         <div className="config-card-body">
           <div className="config-field">
             <label className="config-label">Name</label>
@@ -130,7 +122,7 @@ export function ColumnConfigCard({
             onChange={(context) => onUpdate({ context })}
           />
         </div>
-      )}
+      </div>
     </div>
   );
 }

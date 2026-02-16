@@ -4,7 +4,7 @@ import type { ColumnConfig, SessionConfig } from "../../shared/types.js";
 import { PRESET_COLORS, displayName } from "../../shared/defaults.js";
 import { ColumnConfigCard } from "./ColumnConfigCard.js";
 
-interface SidebarProps {
+interface ConfigEditorProps {
   state: ColumnarState;
 }
 
@@ -45,13 +45,11 @@ function computeImpact(
   const entries: ImpactEntry[] = [];
   const seen = new Set<string>();
 
-  // Find removed columns
   const removedNames: string[] = [];
   for (const name of appliedByName.keys()) {
     if (!draftByName.has(name)) removedNames.push(name);
   }
 
-  // Find modified columns
   const modifiedNames: string[] = [];
   for (const [name, newCol] of draftByName) {
     const oldCol = appliedByName.get(name);
@@ -65,7 +63,6 @@ function computeImpact(
 
   if (removedNames.length === 0 && modifiedNames.length === 0) return null;
 
-  // Collect transitive dependents of removed columns (from applied config)
   const removedSet = new Set(removedNames);
   for (const name of removedNames) {
     if (!seen.has(name)) {
@@ -73,7 +70,6 @@ function computeImpact(
       entries.push({ name, action: "deleted", reason: "direct" });
     }
   }
-  // Forward-scan applied config for cascade deletions
   for (const col of appliedConfig) {
     if (seen.has(col.name)) continue;
     const depsOnRemoved = col.context.some(
@@ -86,7 +82,6 @@ function computeImpact(
     }
   }
 
-  // Collect transitive dependents of modified columns (from draft config)
   const dirtySet = new Set(modifiedNames);
   for (const name of modifiedNames) {
     if (!seen.has(name)) {
@@ -94,7 +89,6 @@ function computeImpact(
       entries.push({ name, action: "recomputed", reason: "direct" });
     }
   }
-  // Forward-scan draft config for cascade recomputation
   for (const col of draftConfig) {
     if (seen.has(col.name)) continue;
     const depsOnDirty = col.context.some(
@@ -110,8 +104,7 @@ function computeImpact(
   return entries.length > 0 ? entries : null;
 }
 
-export function Sidebar({ state }: SidebarProps) {
-  const [open, setOpen] = useState(false);
+export function ConfigEditor({ state }: ConfigEditorProps) {
   const [confirmEntries, setConfirmEntries] = useState<ImpactEntry[] | null>(null);
   const [checkedNames, setCheckedNames] = useState<Set<string>>(new Set());
   const { draftConfig, appliedConfig, steps, isDirty, isRunning, updateDraft, applyConfig, resetDraft } = state;
@@ -119,12 +112,48 @@ export function Sidebar({ state }: SidebarProps) {
   const validationError = validateConfig(draftConfig);
   const canApply = isDirty && !isRunning && !validationError;
 
+  const changeSummary = (() => {
+    if (!isDirty) return [];
+    const appliedByName = new Map(appliedConfig.map((c) => [c.name, c]));
+    const draftByName = new Map(draftConfig.map((c) => [c.name, c]));
+    const items: string[] = [];
+
+    for (const name of draftByName.keys()) {
+      if (!appliedByName.has(name)) items.push(`${displayName(name)} added`);
+    }
+    for (const name of appliedByName.keys()) {
+      if (!draftByName.has(name)) items.push(`${displayName(name)} deleted`);
+    }
+    for (const [name, col] of draftByName) {
+      const old = appliedByName.get(name);
+      if (!old) continue;
+      const diffs: string[] = [];
+      if (old.systemPrompt !== col.systemPrompt) diffs.push("prompt");
+      if (old.reminder !== col.reminder) diffs.push("reminder");
+      if (old.color !== col.color) diffs.push("color");
+      if (JSON.stringify(old.context) !== JSON.stringify(col.context)) diffs.push("context");
+      if (diffs.length > 0) items.push(`${displayName(name)} \u2014 ${diffs.join(", ")}`);
+    }
+
+    // Detect reorder (same names, different order)
+    const appliedOrder = appliedConfig.map((c) => c.name);
+    const draftOrder = draftConfig.map((c) => c.name);
+    if (
+      appliedOrder.length === draftOrder.length &&
+      appliedOrder.every((n) => draftByName.has(n)) &&
+      appliedOrder.some((n, i) => n !== draftOrder[i])
+    ) {
+      items.push("reordered");
+    }
+
+    return items;
+  })();
+
   const updateColumn = (index: number, updates: Partial<ColumnConfig>) => {
     const next = [...draftConfig];
     const old = next[index];
     const updated = { ...old, ...updates };
 
-    // If name changed, update references in downstream columns
     if (updates.name && updates.name !== old.name) {
       for (let i = index + 1; i < next.length; i++) {
         next[i] = {
@@ -142,7 +171,6 @@ export function Sidebar({ state }: SidebarProps) {
 
   const deleteColumn = (index: number) => {
     const name = draftConfig[index].name;
-    // Cascade: remove any columns that reference this one
     const next = draftConfig.filter((col, i) => {
       if (i === index) return false;
       return !col.context.some((ref) => ref.column === name);
@@ -157,7 +185,6 @@ export function Sidebar({ state }: SidebarProps) {
     const next = [...draftConfig];
     [next[index], next[target]] = [next[target], next[index]];
 
-    // After reorder, strip any context refs that now point forward
     for (let i = 0; i < next.length; i++) {
       const preceding = new Set(next.slice(0, i).map((c) => c.name));
       next[i] = {
@@ -199,6 +226,7 @@ export function Sidebar({ state }: SidebarProps) {
       setCheckedNames(new Set());
     } else {
       applyConfig();
+      state.setEditing(false);
     }
   };
 
@@ -206,6 +234,7 @@ export function Sidebar({ state }: SidebarProps) {
     setConfirmEntries(null);
     setCheckedNames(new Set());
     applyConfig();
+    state.setEditing(false);
   };
 
   const cancelConfirm = () => {
@@ -227,63 +256,64 @@ export function Sidebar({ state }: SidebarProps) {
 
   return (
     <>
-      <button
-        className={`sidebar-toggle ${open ? "open" : ""}`}
-        onClick={() => setOpen(!open)}
-        aria-label="Toggle sidebar"
-      >
-        {open ? ">" : "<"}
-      </button>
+      <div className="config-editor">
+        <div className="config-editor-row">
+          {draftConfig.map((col, i) => (
+            <ColumnConfigCard
+              key={`${col.name}-${i}`}
+              config={col}
+              index={i}
+              totalCount={draftConfig.length}
+              fullConfig={draftConfig}
+              onUpdate={(updates) => updateColumn(i, updates)}
+              onDelete={() => deleteColumn(i)}
+              onMoveLeft={() => moveColumn(i, -1)}
+              onMoveRight={() => moveColumn(i, 1)}
+            />
+          ))}
 
-      {open && (
-        <div className="sidebar">
-          <div className="sidebar-header">
-            <h3 className="sidebar-title">Columns</h3>
-          </div>
+          <button className="config-add-btn" onClick={addColumn} aria-label="Add column">
+            +
+          </button>
+        </div>
 
-          <div className="sidebar-body">
-            {draftConfig.map((col, i) => (
-              <ColumnConfigCard
-                key={`${col.name}-${i}`}
-                config={col}
-                index={i}
-                totalCount={draftConfig.length}
-                fullConfig={draftConfig}
-                onUpdate={(updates) => updateColumn(i, updates)}
-                onDelete={() => deleteColumn(i)}
-                onMoveUp={() => moveColumn(i, -1)}
-                onMoveDown={() => moveColumn(i, 1)}
-              />
-            ))}
-
-            <button className="sidebar-add-btn" onClick={addColumn}>
-              + Add Column
+        <div className="config-editor-footer">
+          <div className="config-status-bar">
+            <div className="config-status-box">
+              {validationError ? (
+                <span className="config-editor-error">{validationError}</span>
+              ) : changeSummary.length > 0 ? (
+                <span className="config-status-changes">
+                  {changeSummary.join(" \u00b7 ")}
+                </span>
+              ) : (
+                <span className="config-status-empty">No changes</span>
+              )}
+            </div>
+            <button
+              className="config-apply-btn"
+              onClick={handleApply}
+              disabled={!canApply}
+            >
+              Apply
             </button>
           </div>
-
-          <div className="sidebar-footer">
-            {validationError && (
-              <div className="sidebar-error">{validationError}</div>
-            )}
-            <div className="sidebar-actions">
-              <button
-                className="sidebar-apply-btn"
-                onClick={handleApply}
-                disabled={!canApply}
-              >
-                Apply Changes
-              </button>
-              <button
-                className="sidebar-reset-btn"
-                onClick={resetDraft}
-                disabled={!isDirty}
-              >
-                Reset
-              </button>
-            </div>
+          <div className="composer-links">
+            <button
+              className="clear-button"
+              onClick={() => state.setEditing(false)}
+            >
+              Stash
+            </button>
+            <button
+              className="clear-button"
+              onClick={() => { resetDraft(); state.setEditing(false); }}
+            >
+              Abandon
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
       {confirmEntries && (
         <div className="confirm-overlay" onClick={cancelConfirm}>
@@ -314,13 +344,13 @@ export function Sidebar({ state }: SidebarProps) {
             </div>
             <div className="confirm-footer">
               <button
-                className="sidebar-apply-btn"
+                className="config-apply-btn"
                 onClick={confirmApply}
                 disabled={!allChecked}
               >
                 Confirm
               </button>
-              <button className="sidebar-reset-btn" onClick={cancelConfirm}>
+              <button className="config-reset-btn" onClick={cancelConfirm}>
                 Cancel
               </button>
             </div>

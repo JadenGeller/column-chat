@@ -1,4 +1,4 @@
-import { useState, useCallback, useContext, createContext, type FC } from "react";
+import { useState, useCallback, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -9,20 +9,16 @@ import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
 
-const OpenSidebarContext = createContext<() => void>(() => {});
-
 interface ChatProps {
   state: ColumnarState;
 }
 
 export function Chat({ state }: ChatProps) {
-  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setSidebarOpen } = state;
+  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setEditing } = state;
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage);
-  const openSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <OpenSidebarContext.Provider value={openSidebar}>
       <ThreadPrimitive.Root className="thread-root">
         <ThreadPrimitive.Viewport className="thread-viewport">
           <ThreadPrimitive.Empty>
@@ -56,18 +52,25 @@ export function Chat({ state }: ChatProps) {
               Send
             </ComposerPrimitive.Send>
           </ComposerPrimitive.Root>
-          {steps.length > 0 && (
+          <div className="composer-links">
             <button
               className="clear-button"
-              onClick={clearChat}
-              disabled={isRunning}
+              onClick={() => setEditing(true)}
             >
-              New chat
+              Edit columns
             </button>
-          )}
+            {steps.length > 0 && (
+              <button
+                className="clear-button"
+                onClick={clearChat}
+                disabled={isRunning}
+              >
+                New chat
+              </button>
+            )}
+          </div>
         </div>
       </ThreadPrimitive.Root>
-      </OpenSidebarContext.Provider>
     </AssistantRuntimeProvider>
   );
 }
@@ -103,7 +106,6 @@ function AssistantMessageContent() {
 
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
   const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
-  const openSidebar = useContext(OpenSidebarContext);
 
   const toggle = useCallback((name: string) => {
     setExpandedSet((prev) => {
@@ -153,9 +155,9 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       return (
         <div className="columns-layout">
           <div className="columns-grid">
-            <button className="empty-column-card" onClick={openSidebar}>
+            <div className="empty-column-card">
               it's a little quiet in here
-            </button>
+            </div>
           </div>
         </div>
       );

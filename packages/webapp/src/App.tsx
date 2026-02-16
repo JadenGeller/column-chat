@@ -1,6 +1,6 @@
 import { useColumnar } from "./hooks/useColumnar.js";
 import { Chat } from "./components/Chat.js";
-import { Sidebar } from "./components/Sidebar.js";
+import { ConfigEditor } from "./components/ConfigEditor.js";
 import { ApiKeyOverlay } from "./components/ApiKeyOverlay.js";
 
 interface AppProps {
@@ -17,13 +17,16 @@ export function App({ chatId }: AppProps) {
 
   return (
     <div className="app">
-      <span className="vertical-label">Analysis</span>
+      <span className="vertical-label">{state.editing ? "Configure" : "Analysis"}</span>
       <span className="registration-mark top-center">+</span>
       <span className="registration-mark bottom-center">+</span>
-      <div className="chat-area">
-        <Chat state={state} />
-      </div>
-      <Sidebar state={state} />
+      {state.editing ? (
+        <ConfigEditor state={state} />
+      ) : (
+        <div className="chat-area">
+          <Chat state={state} />
+        </div>
+      )}
     </div>
   );
 }
