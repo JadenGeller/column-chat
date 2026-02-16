@@ -46,13 +46,13 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
   return (
     <div
       className={`column-card ${isLoading ? "loading" : ""} ${expanded ? "expanded" : ""} ${dimmed ? "dimmed" : ""}`}
-      onMouseMove={onMouseMove}
-      onMouseLeave={onMouseLeave}
       style={style}
     >
       <button
         className="column-card-bar"
         onClick={onToggle}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
         aria-label={expanded ? "Collapse" : "Expand"}
       >
         <span className="column-card-bar-label">{label}</span>
