@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 interface ColumnCardProps {
   name: string;
   value: string | undefined;
+  prompt?: string;
 }
 
 const LABELS: Record<string, string> = {
@@ -14,20 +16,64 @@ const LABELS: Record<string, string> = {
   next_steps: "Next Steps",
 };
 
-export function ColumnCard({ name, value }: ColumnCardProps) {
+export function ColumnCard({ name, value, prompt }: ColumnCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const label = LABELS[name] ?? name;
   const isLoading = value === undefined;
 
+  const showTooltip = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltipStyle({
+      position: "fixed",
+      top: rect.bottom + 8,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  }, []);
+
+  const hideTooltip = useCallback(() => setTooltipStyle(null), []);
+
   return (
     <div className={`column-card ${isLoading ? "loading" : ""}`}>
-      <button
-        className="column-card-header"
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        <span className="column-card-label">{label}</span>
-        <span className="column-card-toggle">{collapsed ? "+" : "\u2013"}</span>
-      </button>
+      <div className="column-card-header">
+        <button
+          className="column-card-title"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          <span className="column-card-label">{label}</span>
+          <span className="column-card-toggle">
+            {collapsed ? "+" : "\u2013"}
+          </span>
+        </button>
+        {prompt && (
+          <>
+            <button
+              ref={buttonRef}
+              className="prompt-hint-button"
+              onMouseEnter={showTooltip}
+              onMouseLeave={hideTooltip}
+              onClick={() => tooltipStyle ? hideTooltip() : showTooltip()}
+              aria-label="View system prompt"
+            >
+              ?
+            </button>
+            {tooltipStyle &&
+              createPortal(
+                <div
+                  className="prompt-tooltip"
+                  style={tooltipStyle}
+                  onMouseEnter={showTooltip}
+                  onMouseLeave={hideTooltip}
+                >
+                  {prompt}
+                </div>,
+                document.body
+              )}
+          </>
+        )}
+      </div>
       {!collapsed && (
         <div className="column-card-body">
           {isLoading ? (

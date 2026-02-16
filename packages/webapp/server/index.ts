@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { createSession, derivedColumns } from "./flow.js";
+import { createSession, derivedColumns, columnPrompts } from "./flow.js";
 
 let session = createSession();
 
@@ -68,7 +68,7 @@ const app = new Elysia()
       steps.push({ user: userValue, columns });
     }
 
-    return { steps, columnOrder: derivedColumns };
+    return { steps, columnOrder: derivedColumns, columnPrompts };
   })
   .listen(3000);
 

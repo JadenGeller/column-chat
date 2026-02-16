@@ -10,6 +10,7 @@ export interface Step {
 export interface ColumnarState {
   steps: Step[];
   columnOrder: string[];
+  columnPrompts: Record<string, string>;
   isRunning: boolean;
   sendMessage: (text: string) => void;
   clearChat: () => void;
@@ -18,15 +19,17 @@ export interface ColumnarState {
 export function useColumnar(): ColumnarState {
   const [steps, setSteps] = useState<Step[]>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnPrompts, setColumnPrompts] = useState<Record<string, string>>({});
   const [isRunning, setIsRunning] = useState(false);
 
   // Load existing state on mount
   useEffect(() => {
     fetch("/api/messages")
       .then((res) => res.json())
-      .then((data: { steps: Array<{ user: string; columns: Record<string, string> }>; columnOrder: string[] }) => {
+      .then((data: { steps: Array<{ user: string; columns: Record<string, string> }>; columnOrder: string[]; columnPrompts: Record<string, string> }) => {
         setSteps(data.steps.map((s) => ({ ...s, isRunning: false })));
         setColumnOrder(data.columnOrder);
+        setColumnPrompts(data.columnPrompts);
       })
       .catch(console.error);
   }, []);
@@ -108,5 +111,5 @@ export function useColumnar(): ColumnarState {
       .catch(console.error);
   }, []);
 
-  return { steps, columnOrder, isRunning, sendMessage, clearChat };
+  return { steps, columnOrder, columnPrompts, isRunning, sendMessage, clearChat };
 }

@@ -10,8 +10,8 @@ import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
 
 export function Chat() {
-  const { steps, columnOrder, isRunning, sendMessage, clearChat } = useColumnar();
-  const runtime = useColumnarRuntime(steps, columnOrder, isRunning, sendMessage);
+  const { steps, columnOrder, columnPrompts, isRunning, sendMessage, clearChat } = useColumnar();
+  const runtime = useColumnarRuntime(steps, columnOrder, columnPrompts, isRunning, sendMessage);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -98,6 +98,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       stepIndex: number;
       columns: Record<string, string>;
       columnOrder: string[];
+      columnPrompts: Record<string, string>;
       isRunning: boolean;
       error?: string;
     };
@@ -113,6 +114,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
             key={name}
             name={name}
             value={data.columns[name]}
+            prompt={data.columnPrompts[name]}
           />
         ))}
       </div>

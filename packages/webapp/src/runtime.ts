@@ -11,6 +11,7 @@ interface StepMessage {
 export function useColumnarRuntime(
   steps: Step[],
   columnOrder: string[],
+  columnPrompts: Record<string, string>,
   isRunning: boolean,
   sendMessage: (text: string) => void
 ) {
@@ -31,6 +32,7 @@ export function useColumnarRuntime(
       stepIndex: i,
       columns: step.columns,
       columnOrder,
+      columnPrompts,
       isRunning: step.isRunning,
       error: step.error,
     });
