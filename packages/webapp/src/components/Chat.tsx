@@ -197,7 +197,6 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
     if (!viewport) return;
     const onScroll = () => {
       scrollingRef.current = true;
-      setHoveredRaw(null);
       clearTimeout(scrollTimerRef.current);
       scrollTimerRef.current = setTimeout(() => { scrollingRef.current = false; }, 150);
     };
