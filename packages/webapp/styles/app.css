@@ -7,7 +7,7 @@
 }
 
 :root {
-  --cream: #F5F0EB;
+  --cream: #F6F4F0;
   --black: #1A1A1A;
   --red: #E63B12;
   --red-hover: #C73210;
@@ -74,32 +74,7 @@ body,
   border-right: 2px solid var(--black);
 }
 
-/* Bottom crop marks via pseudo on #root */
-#root::before,
-#root::after {
-  content: "";
-  position: fixed;
-  z-index: 100;
-  pointer-events: none;
-}
-
-#root::before {
-  bottom: 14px;
-  left: 14px;
-  width: 20px;
-  height: 20px;
-  border-bottom: 2px solid var(--black);
-  border-left: 2px solid var(--black);
-}
-
-#root::after {
-  bottom: 14px;
-  right: 14px;
-  width: 20px;
-  height: 20px;
-  border-bottom: 2px solid var(--black);
-  border-right: 2px solid var(--black);
-}
+/* Bottom crop marks — anchored above composer */
 
 /* Vertical rotated label */
 .vertical-label {
@@ -162,7 +137,7 @@ body,
 .thread-viewport {
   flex: 1;
   overflow-y: auto;
-  padding: 48px var(--content-inset) 100px;
+  padding: 48px var(--content-inset) 160px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -596,9 +571,31 @@ body,
   left: 0;
   right: 0;
   padding: 20px var(--content-inset) 28px;
-  background: rgba(245, 240, 235, 0.8);
+  background: rgba(230, 226, 220, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+.composer-container::before,
+.composer-container::after {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 14px);
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.composer-container::before {
+  left: 14px;
+  border-bottom: 2px solid var(--black);
+  border-left: 2px solid var(--black);
+}
+
+.composer-container::after {
+  right: 14px;
+  border-bottom: 2px solid var(--black);
+  border-right: 2px solid var(--black);
 }
 
 .composer-root {
