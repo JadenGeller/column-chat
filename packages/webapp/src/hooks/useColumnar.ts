@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { SessionConfig, Capabilities, Mutation, ColumnContextRef } from "../../shared/types.js";
+import type { SessionConfig, Capabilities, Mutation, ColumnContextRef, ColumnConfig } from "../../shared/types.js";
 import { overlay, validateConfig } from "../../shared/types.js";
 
 export interface Step {
@@ -35,22 +35,6 @@ export interface ColumnarState {
   apiKey: string | null;
   setApiKey: (key: string) => void;
   loadPreset: (config: SessionConfig) => void;
-}
-
-function needsReplay(oldConfig: SessionConfig, newConfig: SessionConfig): boolean {
-  if (oldConfig.length !== newConfig.length) return true;
-  const oldById = new Map(oldConfig.map((c) => [c.id, c]));
-  for (const col of newConfig) {
-    const old = oldById.get(col.id);
-    if (!old) return true;
-    if (
-      old.name !== col.name ||
-      old.systemPrompt !== col.systemPrompt ||
-      old.reminder !== col.reminder ||
-      JSON.stringify(old.context) !== JSON.stringify(col.context)
-    ) return true;
-  }
-  return false;
 }
 
 function deriveFromConfig(config: SessionConfig) {
@@ -462,9 +446,19 @@ export function useColumnar(chatId: string): ColumnarState {
     } else {
       // Local mode — canApply guarantees apiKey is set
       const newConfig = draftConfig;
+      const session = sessionRef.current;
 
-      // If no computation-affecting fields changed, just update config without replay
-      if (!needsReplay(appliedConfig, newConfig)) {
+      const [{ diffConfigs }, { applyConfigUpdate, createColumnFromConfig }] = await Promise.all([
+        import("../../shared/config.js"),
+        import("../../shared/flow.js"),
+      ]);
+
+      const diff = diffConfigs(appliedConfig, newConfig);
+      const hasComputation =
+        diff.removed.length > 0 || diff.modified.length > 0 || diff.added.length > 0 || diff.renamed.length > 0;
+
+      // If no structural changes (color-only or identical), apply immediately
+      if (!hasComputation) {
         setAppliedConfig(newConfig);
         setMutations([]);
         setEditing(false);
@@ -472,52 +466,57 @@ export function useColumnar(chatId: string): ColumnarState {
         return;
       }
 
-      // Recreate session with new config, replay inputs
-      const [{ createAnthropic }, { createSessionFromConfig }] = await Promise.all([
-        import("@ai-sdk/anthropic"),
-        import("../../shared/flow.js"),
-      ]);
+      if (!session) return;
 
+      // Create a model-bound column factory matching the server pattern
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
       const provider = createAnthropic({
         apiKey: apiKey!,
         headers: { "anthropic-dangerous-direct-browser-access": "true" },
       });
       const model = provider("claude-sonnet-4-5-20250929");
 
-      const savedInputs = steps.map((s) => s.input);
-      let freshSession;
+      const createColumn = (cfg: ColumnConfig, columnMap: Map<string, import("columnar").Column>, storage: import("columnar").StorageProvider) =>
+        createColumnFromConfig(cfg, columnMap, storage, model);
+
       try {
-        freshSession = createSessionFromConfig(newConfig, model);
+        applyConfigUpdate(session, diff, newConfig, createColumn);
       } catch (err) {
-        console.error("Failed to create session from config:", err);
+        console.error("Failed to apply config update:", err);
         return;
       }
 
-      sessionRef.current = freshSession;
+      session.columnOrder = newConfig.map((c) => c.name);
       sessionConfigRef.current = newConfig;
       setAppliedConfig(newConfig);
       setMutations([]);
       setEditing(false);
 
-      if (savedInputs.length === 0) {
+      // Snapshot current state from storage (preserves existing computed values)
+      const snapshotSteps: Step[] = [];
+      for (let step = 0; ; step++) {
+        const inputValue = session.f.get("input", step);
+        if (inputValue === undefined) break;
+        const columns: Record<string, string> = {};
+        for (const name of session.columnOrder) {
+          const value = session.f.get(name, step);
+          if (value !== undefined) {
+            columns[name] = value;
+          }
+        }
+        snapshotSteps.push({ input: inputValue, columns, computing: new Set<string>(), isRunning: false });
+      }
+      setSteps(snapshotSteps);
+
+      if (snapshotSteps.length === 0) {
         persist([], newConfig);
         return;
       }
 
+      // Stream computation events for only the dirty/new cells
       setIsRunning(true);
-      setSteps(savedInputs.map((input) => ({
-        input,
-        columns: {},
-        computing: new Set<string>(),
-        isRunning: true,
-      })));
-
-      for (const input of savedInputs) {
-        freshSession.input.push(input);
-      }
-
       try {
-        for await (const event of freshSession.f.run()) {
+        for await (const event of session.f.run()) {
           if (event.kind === "start") {
             setSteps((prev) =>
               prev.map((s, i) =>
