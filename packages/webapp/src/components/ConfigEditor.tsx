@@ -436,12 +436,26 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
               </button>
             </>
           ) : (
-            <button
-              className="clear-button"
-              onClick={() => state.setEditing(false)}
-            >
-              Done
-            </button>
+            <>
+              <button
+                className="clear-button"
+                onClick={() => state.setEditing(false)}
+              >
+                Done
+              </button>
+              {appliedConfig.length > 0 && (
+                <button
+                  className="clear-button"
+                  onClick={() => {
+                    for (const col of appliedConfig) {
+                      dispatch({ type: "remove", id: col.id });
+                    }
+                  }}
+                >
+                  Delete all
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

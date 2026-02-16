@@ -1168,8 +1168,8 @@ body,
 
 /* Change log — vertical list with individual revert */
 .config-changes {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   width: 100%;
 }
@@ -1177,8 +1177,7 @@ body,
 .config-change-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 0;
+  gap: 4px;
 }
 
 /* Kind badge — matches config-impact-action style */
