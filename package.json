@@ -1,5 +1,5 @@
 {
-  "name": "columnar-root",
+  "name": "column-chat",
   "private": true,
   "workspaces": ["packages/*"],
   "devDependencies": {

@@ -6,9 +6,9 @@ Columnar is a TypeScript library for step-synchronized, columnar dataflow over L
 
 ## Key Documents
 
-- `SPEC.md` — The full API design. This is the contract. Build what it describes.
-- `CONTEXT_ASSEMBLY.md` — Worked examples of exactly what messages arrays should look like. This is the critical path. Read it carefully before implementing `context.ts`. The examples are the ground truth — if the spec is ambiguous, the examples are authoritative.
-- `COLUMN-TYPES.md` — Design for the dependency model (`{ column, row, count }`), emergent patterns, DAG scheduling with `row: 'previous'` parallelism, and validation/invalidation rules.
+- `docs/SPEC.md` — The full API design. This is the contract. Build what it describes.
+- `docs/CONTEXT-ASSEMBLY.md` — Worked examples of exactly what messages arrays should look like. This is the critical path. Read it carefully before implementing `context.ts`. The examples are the ground truth — if the spec is ambiguous, the examples are authoritative.
+- `docs/COLUMN-TYPES.md` — Design for the dependency model (`{ column, row, count }`), emergent patterns, DAG scheduling with `row: 'previous'` parallelism, and validation/invalidation rules.
 
 ## Architecture
 
