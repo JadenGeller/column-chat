@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { SessionConfig } from "../../shared/types.js";
-import { DEFAULT_CONFIG } from "../../shared/defaults.js";
-
 export interface Step {
   input: string;
   columns: Record<string, string>;
@@ -25,6 +23,8 @@ export interface ColumnarState {
   updateDraft: (config: SessionConfig) => void;
   applyConfig: () => Promise<void>;
   resetDraft: () => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 function deriveFromConfig(config: SessionConfig) {
@@ -44,9 +44,10 @@ function deriveFromConfig(config: SessionConfig) {
 
 export function useColumnar(): ColumnarState {
   const [steps, setSteps] = useState<Step[]>([]);
-  const [appliedConfig, setAppliedConfig] = useState<SessionConfig>(DEFAULT_CONFIG);
-  const [draftConfig, setDraftConfig] = useState<SessionConfig>(DEFAULT_CONFIG);
+  const [appliedConfig, setAppliedConfig] = useState<SessionConfig>([]);
+  const [draftConfig, setDraftConfig] = useState<SessionConfig>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { columnOrder, columnColors, columnPrompts, columnDeps } = useMemo(
     () => deriveFromConfig(appliedConfig),
@@ -293,5 +294,7 @@ export function useColumnar(): ColumnarState {
     updateDraft,
     applyConfig,
     resetDraft,
+    sidebarOpen,
+    setSidebarOpen,
   };
 }

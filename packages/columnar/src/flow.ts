@@ -175,9 +175,9 @@ export function flow(...leaves: Column[]): Flow {
     const iterable = {
       async *[Symbol.asyncIterator](): AsyncGenerator<FlowEvent> {
         // Determine how many steps we can compute
-        const maxSteps = Math.min(
-          ...sources.map((s) => s.storage.length)
-        );
+        const maxSteps = sources.length > 0
+          ? Math.min(...sources.map((s) => s.storage.length))
+          : 0;
 
         // Start from earliest dirty step (a cleared/new column has storage.length < computedSteps)
         const startStep = derived.length > 0

@@ -7,8 +7,8 @@ import type { SessionConfig, ColumnConfig } from "../shared/types.js";
 const RESERVED_NAMES = new Set(["input", "self"]);
 
 function validateConfig(config: SessionConfig): string | null {
-  if (!Array.isArray(config) || config.length === 0) {
-    return "At least one column is required";
+  if (!Array.isArray(config)) {
+    return "Config must be an array";
   }
 
   const seen = new Set<string>();

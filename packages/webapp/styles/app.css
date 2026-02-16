@@ -322,6 +322,28 @@ body,
   opacity: 0.65;
 }
 
+/* Empty state card */
+.empty-column-card {
+  flex: 0 0 320px;
+  width: 320px;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(26, 26, 26, 0.2);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.empty-column-card:hover {
+  border-color: rgba(26, 26, 26, 0.4);
+  color: var(--black);
+}
+
 /* Vertical name bar — always visible */
 .column-card-bar {
   display: flex;

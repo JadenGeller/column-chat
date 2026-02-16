@@ -11,8 +11,6 @@ interface SidebarProps {
 const RESERVED_NAMES = new Set(["input", "self"]);
 
 function validateConfig(config: SessionConfig): string | null {
-  if (config.length === 0) return "At least one column is required";
-
   const seen = new Set<string>();
   for (const col of config) {
     if (!col.name) return "Column name cannot be empty";

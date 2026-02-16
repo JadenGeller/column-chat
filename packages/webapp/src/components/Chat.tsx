@@ -1,4 +1,4 @@
-import { useState, useCallback, type FC } from "react";
+import { useState, useCallback, useContext, createContext, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -9,16 +9,20 @@ import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
 
+const OpenSidebarContext = createContext<() => void>(() => {});
+
 interface ChatProps {
   state: ColumnarState;
 }
 
 export function Chat({ state }: ChatProps) {
-  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat } = state;
+  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setSidebarOpen } = state;
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage);
+  const openSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <OpenSidebarContext.Provider value={openSidebar}>
       <ThreadPrimitive.Root className="thread-root">
         <ThreadPrimitive.Viewport className="thread-viewport">
           <ThreadPrimitive.Empty>
@@ -63,6 +67,7 @@ export function Chat({ state }: ChatProps) {
           )}
         </div>
       </ThreadPrimitive.Root>
+      </OpenSidebarContext.Provider>
     </AssistantRuntimeProvider>
   );
 }
@@ -98,6 +103,7 @@ function AssistantMessageContent() {
 
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
   const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
+  const openSidebar = useContext(OpenSidebarContext);
 
   const toggle = useCallback((name: string) => {
     setExpandedSet((prev) => {
@@ -141,6 +147,18 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
         name: d,
         done: data.columns[d] !== undefined,
       }));
+    }
+
+    if (data.columnOrder.length === 0) {
+      return (
+        <div className="columns-layout">
+          <div className="columns-grid">
+            <button className="empty-column-card" onClick={openSidebar}>
+              it's a little quiet in here
+            </button>
+          </div>
+        </div>
+      );
     }
 
     const expanded = data.columnOrder.filter((n) => expandedSet.has(n));
