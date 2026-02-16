@@ -311,7 +311,7 @@ body,
 }
 
 .empty-column-strip.dimmed {
-  filter: grayscale(1);
+  filter: grayscale(1) opacity(0.35);
 }
 
 /* Preset picker — 2×2 grid */
@@ -520,7 +520,7 @@ body,
 }
 
 .column-card.dimmed {
-  filter: grayscale(1);
+  filter: grayscale(1) opacity(0.35);
 }
 
 /* Empty state card */
