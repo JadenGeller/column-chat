@@ -62,7 +62,7 @@ export function Chat({ state }: ChatProps) {
               onClick={clearChat}
               disabled={isRunning}
             >
-              Clear session
+              New chat
             </button>
           )}
         </div>

@@ -101,21 +101,43 @@ function getStepsSnapshot(session: ReturnType<typeof createSessionFromConfig>) {
   return steps;
 }
 
-let currentConfig: SessionConfig = DEFAULT_CONFIG;
-let session = createSessionFromConfig(currentConfig);
+interface ServerSession {
+  config: SessionConfig;
+  session: ReturnType<typeof createSessionFromConfig>;
+}
+
+const sessions = new Map<string, ServerSession>();
+
+function getOrCreateSession(chatId: string): ServerSession {
+  let entry = sessions.get(chatId);
+  if (!entry) {
+    const config = DEFAULT_CONFIG;
+    entry = { config, session: createSessionFromConfig(config) };
+    sessions.set(chatId, entry);
+  }
+  return entry;
+}
+
+const isCloud = !!process.env.ANTHROPIC_API_KEY;
 
 const app = new Elysia()
   .use(cors())
-  .post("/api/chat", async ({ body }) => {
+  .get("/api/capabilities", () => {
+    return { mode: isCloud ? "cloud" : "local" };
+  })
+  .post("/api/chat/:chatId", async ({ params, body }) => {
+    if (!isCloud) return new Response("Not available in local mode", { status: 404 });
+    const chatId = params.chatId;
+    const entry = getOrCreateSession(chatId);
     const { message } = body as { message: string };
 
-    session.input.push(message);
+    entry.session.input.push(message);
 
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         try {
-          for await (const event of session.f.run()) {
+          for await (const event of entry.session.f.run()) {
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
             );
@@ -146,17 +168,24 @@ const app = new Elysia()
       },
     });
   })
-  .post("/api/clear", ({ body }) => {
+  .post("/api/clear/:chatId", ({ params, body }) => {
+    if (!isCloud) return new Response("Not available in local mode", { status: 404 });
+    const chatId = params.chatId;
     const { config } = (body ?? {}) as { config?: SessionConfig };
+    const entry = getOrCreateSession(chatId);
     if (config) {
       const error = validateConfig(config);
       if (error) return { ok: false, error };
-      currentConfig = config;
+      entry.config = config;
     }
-    session = createSessionFromConfig(currentConfig);
-    return { ok: true, config: currentConfig };
+    entry.session = createSessionFromConfig(entry.config);
+    sessions.set(chatId, entry);
+    return { ok: true, config: entry.config };
   })
-  .post("/api/config", async ({ body }) => {
+  .post("/api/config/:chatId", async ({ params, body }) => {
+    if (!isCloud) return new Response("Not available in local mode", { status: 404 });
+    const chatId = params.chatId;
+    const entry = getOrCreateSession(chatId);
     const { config } = body as { config: SessionConfig };
 
     const error = validateConfig(config);
@@ -167,15 +196,15 @@ const app = new Elysia()
       );
     }
 
-    const diff = diffConfigs(currentConfig, config);
+    const diff = diffConfigs(entry.config, config);
     const hasComputation =
       diff.removed.length > 0 || diff.modified.length > 0 || diff.added.length > 0;
 
     // If no structural changes (color-only or identical), apply immediately
     if (!hasComputation) {
-      currentConfig = config;
+      entry.config = config;
       return new Response(
-        JSON.stringify({ ok: true, config: currentConfig }),
+        JSON.stringify({ ok: true, config: entry.config }),
         { headers: { "Content-Type": "application/json" } }
       );
     }
@@ -193,7 +222,7 @@ const app = new Elysia()
           const toRemove = new Set<string>();
           for (const name of diff.removed) {
             toRemove.add(name);
-            for (const dep of session.f.dependents(name)) {
+            for (const dep of entry.session.f.dependents(name)) {
               toRemove.add(dep);
             }
           }
@@ -201,7 +230,7 @@ const app = new Elysia()
           const removeOrder: string[] = [];
           const removeVisited = new Set<string>();
           for (const name of diff.removed) {
-            const deps = session.f.dependents(name);
+            const deps = entry.session.f.dependents(name);
             for (const dep of [...deps].reverse()) {
               if (toRemove.has(dep) && !removeVisited.has(dep)) {
                 removeVisited.add(dep);
@@ -214,41 +243,41 @@ const app = new Elysia()
             }
           }
           for (const name of removeOrder) {
-            session.f.removeColumn(name);
-            session.columnOrder = session.columnOrder.filter((n) => n !== name);
-            session.columnMap.delete(name);
+            entry.session.f.removeColumn(name);
+            entry.session.columnOrder = entry.session.columnOrder.filter((n) => n !== name);
+            entry.session.columnMap.delete(name);
           }
 
           // Apply modifications
           for (const { name, config: cfg } of diff.modified) {
-            const newCol = createColumnFromConfig(cfg, session.columnMap, session.storage);
-            session.f.replaceColumn(name, newCol);
-            session.columnMap.set(name, newCol);
+            const newCol = createColumnFromConfig(cfg, entry.session.columnMap, entry.session.storage);
+            entry.session.f.replaceColumn(name, newCol);
+            entry.session.columnMap.set(name, newCol);
           }
 
           // Apply additions
           for (const cfg of diff.added) {
-            const newCol = createColumnFromConfig(cfg, session.columnMap, session.storage);
-            session.f.addColumn(newCol);
-            session.columnMap.set(cfg.name, newCol);
-            session.columnOrder.push(cfg.name);
+            const newCol = createColumnFromConfig(cfg, entry.session.columnMap, entry.session.storage);
+            entry.session.f.addColumn(newCol);
+            entry.session.columnMap.set(cfg.name, newCol);
+            entry.session.columnOrder.push(cfg.name);
           }
 
           // Update config and column order to match new config ordering
-          currentConfig = config;
-          session.columnOrder = config.map((c) => c.name);
+          entry.config = config;
+          entry.session.columnOrder = config.map((c) => c.name);
 
           // Send init event with current state snapshot
-          const steps = getStepsSnapshot(session);
+          const steps = getStepsSnapshot(entry.session);
           send({
             kind: "init",
             steps,
-            columnOrder: session.columnOrder,
-            config: currentConfig,
+            columnOrder: entry.session.columnOrder,
+            config: entry.config,
           });
 
           // Stream computation events
-          for await (const event of session.f.run()) {
+          for await (const event of entry.session.f.run()) {
             send(event);
           }
 
@@ -271,14 +300,27 @@ const app = new Elysia()
       },
     });
   })
-  .get("/api/messages", () => {
-    const steps = getStepsSnapshot(session);
+  .get("/api/messages/:chatId", ({ params }) => {
+    if (!isCloud) return new Response("Not available in local mode", { status: 404 });
+    const chatId = params.chatId;
+    const entry = getOrCreateSession(chatId);
+    const steps = getStepsSnapshot(entry.session);
     return {
       steps,
-      columnOrder: session.columnOrder,
-      config: currentConfig,
+      columnOrder: entry.session.columnOrder,
+      config: entry.config,
     };
+  })
+  .get("*", ({ request }) => {
+    const url = new URL(request.url);
+    // Don't catch API routes
+    if (url.pathname.startsWith("/api/")) {
+      return new Response("Not found", { status: 404 });
+    }
+    return new Response(Bun.file("dist/index.html"), {
+      headers: { "Content-Type": "text/html" },
+    });
   })
   .listen(3000);
 
-console.log(`Server running at http://localhost:${app.server!.port}`);
+console.log(`Server running at http://localhost:${app.server!.port} (${isCloud ? "cloud" : "local"} mode)`);

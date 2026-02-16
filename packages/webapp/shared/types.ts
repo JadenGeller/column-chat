@@ -12,3 +12,7 @@ export interface ColumnConfig {
 }
 
 export type SessionConfig = ColumnConfig[];
+
+export interface Capabilities {
+  mode: "cloud" | "local";
+}

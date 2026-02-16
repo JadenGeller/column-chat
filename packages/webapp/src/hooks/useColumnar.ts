@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import type { SessionConfig } from "../../shared/types.js";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import type { SessionConfig, Capabilities } from "../../shared/types.js";
+
 export interface Step {
   input: string;
   columns: Record<string, string>;
@@ -25,6 +26,9 @@ export interface ColumnarState {
   resetDraft: () => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  mode: "cloud" | "local" | null;
+  apiKey: string | null;
+  setApiKey: (key: string) => void;
 }
 
 function deriveFromConfig(config: SessionConfig) {
@@ -42,12 +46,89 @@ function deriveFromConfig(config: SessionConfig) {
   return { columnOrder, columnColors, columnPrompts, columnDeps };
 }
 
-export function useColumnar(): ColumnarState {
+// SSE stream reader helper
+function readSSE(
+  res: Response,
+  onEvent: (data: any) => void,
+  onDone: () => void,
+  onError: (error: string) => void
+) {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  (async () => {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop()!;
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = JSON.parse(line.slice(6));
+
+        if (data.error) {
+          onError(data.error);
+          return;
+        }
+
+        if (data.done) {
+          onDone();
+          return;
+        }
+
+        onEvent(data);
+      }
+    }
+  })();
+}
+
+// localStorage helpers
+interface SavedChat {
+  steps: Array<{ input: string; columns: Record<string, string> }>;
+  config: SessionConfig;
+}
+
+function loadChat(chatId: string): SavedChat | null {
+  try {
+    const raw = localStorage.getItem(`columnar:${chatId}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedChat;
+  } catch {
+    return null;
+  }
+}
+
+function saveChat(chatId: string, data: SavedChat) {
+  localStorage.setItem(`columnar:${chatId}`, JSON.stringify(data));
+}
+
+function loadApiKey(): string | null {
+  return localStorage.getItem("columnar:apiKey");
+}
+
+function saveApiKey(key: string) {
+  localStorage.setItem("columnar:apiKey", key);
+}
+
+// Type for the local session ref
+type LocalSession = Awaited<ReturnType<typeof import("../../shared/flow.js").createSessionFromConfig>>;
+
+export function useColumnar(chatId: string): ColumnarState {
+  const [mode, setMode] = useState<"cloud" | "local" | null>(null);
+  const [apiKey, setApiKeyState] = useState<string | null>(loadApiKey());
   const [steps, setSteps] = useState<Step[]>([]);
   const [appliedConfig, setAppliedConfig] = useState<SessionConfig>([]);
   const [draftConfig, setDraftConfig] = useState<SessionConfig>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Local mode session ref
+  const sessionRef = useRef<LocalSession | null>(null);
+  const sessionConfigRef = useRef<SessionConfig>([]);
 
   const { columnOrder, columnColors, columnPrompts, columnDeps } = useMemo(
     () => deriveFromConfig(appliedConfig),
@@ -59,9 +140,23 @@ export function useColumnar(): ColumnarState {
     [appliedConfig, draftConfig]
   );
 
-  // Load existing state on mount
+  const setApiKey = useCallback((key: string) => {
+    saveApiKey(key);
+    setApiKeyState(key);
+  }, []);
+
+  // Fetch capabilities on mount
   useEffect(() => {
-    fetch("/api/messages")
+    fetch("/api/capabilities")
+      .then((res) => res.json())
+      .then((data: Capabilities) => setMode(data.mode))
+      .catch(() => setMode("local"));
+  }, []);
+
+  // Cloud mode: load existing state on mount
+  useEffect(() => {
+    if (mode !== "cloud") return;
+    fetch(`/api/messages/${chatId}`)
       .then((res) => res.json())
       .then((data: {
         steps: Array<{ input: string; columns: Record<string, string> }>;
@@ -73,8 +168,69 @@ export function useColumnar(): ColumnarState {
         setDraftConfig(data.config);
       })
       .catch(console.error);
-  }, []);
+  }, [mode, chatId]);
 
+  // Local mode: load from localStorage, create flow
+  useEffect(() => {
+    if (mode !== "local" || !apiKey) return;
+    let cancelled = false;
+
+    (async () => {
+      const [{ createAnthropic }, { createSessionFromConfig }, { inMemoryStorage }] = await Promise.all([
+        import("@ai-sdk/anthropic"),
+        import("../../shared/flow.js"),
+        import("columnar"),
+      ]);
+      if (cancelled) return;
+
+      const provider = createAnthropic({
+        apiKey,
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      });
+      const model = provider("claude-sonnet-4-5-20250929");
+
+      const saved = loadChat(chatId);
+      const config = saved?.config ?? [];
+
+      // Build pre-populated store from saved steps
+      const store: Record<string, string>[] = [];
+      if (saved?.steps) {
+        for (const s of saved.steps) {
+          store.push({ input: s.input, ...s.columns });
+        }
+      }
+
+      // Create session with pre-populated storage
+      const storage = inMemoryStorage(store);
+      const session = createSessionFromConfig(config, model, storage);
+
+      sessionRef.current = session;
+      sessionConfigRef.current = config;
+
+      if (saved?.steps) {
+        setSteps(saved.steps.map((s) => ({
+          ...s,
+          computing: new Set<string>(),
+          isRunning: false,
+        })));
+      }
+      setAppliedConfig(config);
+      setDraftConfig(config);
+    })();
+
+    return () => { cancelled = true; };
+  }, [mode, chatId, apiKey]);
+
+  // Persist helper for local mode
+  const persist = useCallback((currentSteps: Step[], config: SessionConfig) => {
+    const data: SavedChat = {
+      steps: currentSteps.map((s) => ({ input: s.input, columns: s.columns })),
+      config,
+    };
+    saveChat(chatId, data);
+  }, [chatId]);
+
+  // ---- sendMessage ----
   const sendMessage = useCallback((text: string) => {
     const stepIndex = steps.length;
 
@@ -84,196 +240,272 @@ export function useColumnar(): ColumnarState {
     ]);
     setIsRunning(true);
 
-    const markDone = (error?: string) => {
-      setSteps((prev) =>
-        prev.map((s, i) =>
-          i === stepIndex ? { ...s, isRunning: false, error } : s
-        )
-      );
-      setIsRunning(false);
-    };
+    if (mode === "cloud") {
+      const markDone = (error?: string) => {
+        setSteps((prev) =>
+          prev.map((s, i) =>
+            i === stepIndex ? { ...s, isRunning: false, computing: new Set<string>(), error } : s
+          )
+        );
+        setIsRunning(false);
+      };
 
-    fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text }),
-    }).then(async (res) => {
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+      fetch(`/api/chat/${chatId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      }).then((res) => {
+        readSSE(
+          res,
+          (data) => {
+            if (data.kind === "start") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === stepIndex
+                    ? { ...s, computing: new Set(s.computing).add(data.column) }
+                    : s
+                )
+              );
+            } else if (data.kind === "delta") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === stepIndex
+                    ? { ...s, columns: { ...s.columns, [data.column]: (s.columns[data.column] ?? "") + data.delta } }
+                    : s
+                )
+              );
+            } else if (data.kind === "value") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === stepIndex
+                    ? { ...s, columns: { ...s.columns, [data.column]: data.value } }
+                    : s
+                )
+              );
+            }
+          },
+          () => markDone(),
+          (error) => markDone(error)
+        );
+      }).catch((err) => {
+        markDone(err instanceof Error ? err.message : String(err));
+      });
+    } else {
+      // Local mode
+      const session = sessionRef.current;
+      if (!session) return;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      session.input.push(text);
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop()!;
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = JSON.parse(line.slice(6));
-
-          if (data.error) {
-            markDone(data.error);
-            return;
+      (async () => {
+        try {
+          for await (const event of session.f.run()) {
+            if (event.kind === "start") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === stepIndex
+                    ? { ...s, computing: new Set(s.computing).add(event.column) }
+                    : s
+                )
+              );
+            } else if (event.kind === "delta") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === stepIndex
+                    ? { ...s, columns: { ...s.columns, [event.column]: (s.columns[event.column] ?? "") + event.delta } }
+                    : s
+                )
+              );
+            } else if (event.kind === "value") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === stepIndex
+                    ? { ...s, columns: { ...s.columns, [event.column]: event.value } }
+                    : s
+                )
+              );
+            }
           }
-
-          if (data.done) {
-            markDone();
-            return;
-          }
-
-          if (data.kind === "start") {
-            const { column } = data as { column: string };
-            setSteps((prev) =>
-              prev.map((s, i) =>
-                i === stepIndex
-                  ? { ...s, computing: new Set(s.computing).add(column) }
-                  : s
-              )
+          setSteps((prev) => {
+            const updated = prev.map((s, i) =>
+              i === stepIndex ? { ...s, isRunning: false, computing: new Set<string>() } : s
             );
-          } else if (data.kind === "delta") {
-            const { column, delta } = data as { column: string; delta: string };
-            setSteps((prev) =>
-              prev.map((s, i) =>
-                i === stepIndex
-                  ? { ...s, columns: { ...s.columns, [column]: (s.columns[column] ?? "") + delta } }
-                  : s
-              )
-            );
-          } else if (data.kind === "value") {
-            const { column, value: colValue } = data as { column: string; value: string };
-            setSteps((prev) =>
-              prev.map((s, i) =>
-                i === stepIndex
-                  ? { ...s, columns: { ...s.columns, [column]: colValue } }
-                  : s
-              )
-            );
-          }
+            persist(updated, sessionConfigRef.current);
+            return updated;
+          });
+        } catch (err) {
+          const error = err instanceof Error ? err.message : String(err);
+          setSteps((prev) =>
+            prev.map((s, i) =>
+              i === stepIndex ? { ...s, isRunning: false, error } : s
+            )
+          );
         }
-      }
-    }).catch((err) => {
-      markDone(err instanceof Error ? err.message : String(err));
-    });
-  }, [steps.length]);
+        setIsRunning(false);
+      })();
+    }
+  }, [steps.length, chatId, mode, persist]);
 
+  // ---- clearChat ----
   const clearChat = useCallback(() => {
-    fetch("/api/clear", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    })
-      .then(() => {
-        setSteps([]);
-      })
-      .catch(console.error);
+    window.location.href = "/";
   }, []);
 
   const updateDraft = useCallback((config: SessionConfig) => {
     setDraftConfig(config);
   }, []);
 
+  // ---- applyConfig ----
   const applyConfig = useCallback(async () => {
-    try {
-      const res = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config: draftConfig }),
-      });
+    if (mode === "cloud") {
+      try {
+        const res = await fetch(`/api/config/${chatId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: draftConfig }),
+        });
 
-      const contentType = res.headers.get("Content-Type") ?? "";
+        const contentType = res.headers.get("Content-Type") ?? "";
 
-      // Non-streaming response (color-only or error)
-      if (contentType.includes("application/json")) {
-        const data = await res.json() as { ok: boolean; config?: SessionConfig; error?: string };
-        if (data.ok && data.config) {
-          setAppliedConfig(data.config);
-          setDraftConfig(data.config);
+        if (contentType.includes("application/json")) {
+          const data = await res.json() as { ok: boolean; config?: SessionConfig; error?: string };
+          if (data.ok && data.config) {
+            setAppliedConfig(data.config);
+            setDraftConfig(data.config);
+          }
+          return;
         }
+
+        setIsRunning(true);
+        readSSE(
+          res,
+          (data) => {
+            if (data.kind === "init") {
+              setAppliedConfig(data.config);
+              setDraftConfig(data.config);
+              setSteps(
+                data.steps.map((s: any) => ({
+                  ...s,
+                  computing: new Set<string>(),
+                  isRunning: false,
+                }))
+              );
+            } else if (data.kind === "start") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === data.step
+                    ? { ...s, computing: new Set(s.computing).add(data.column), isRunning: true }
+                    : s
+                )
+              );
+            } else if (data.kind === "delta") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === data.step
+                    ? { ...s, columns: { ...s.columns, [data.column]: (s.columns[data.column] ?? "") + data.delta } }
+                    : s
+                )
+              );
+            } else if (data.kind === "value") {
+              setSteps((prev) =>
+                prev.map((s, i) =>
+                  i === data.step
+                    ? { ...s, columns: { ...s.columns, [data.column]: data.value } }
+                    : s
+                )
+              );
+            }
+          },
+          () => setIsRunning(false),
+          (error) => {
+            console.error("Config apply error:", error);
+            setIsRunning(false);
+          }
+        );
+      } catch (err) {
+        console.error("Failed to apply config:", err);
+        setIsRunning(false);
+      }
+    } else {
+      // Local mode: recreate session with new config, replay inputs
+      if (!apiKey) return;
+
+      const [{ createAnthropic }, { createSessionFromConfig }] = await Promise.all([
+        import("@ai-sdk/anthropic"),
+        import("../../shared/flow.js"),
+      ]);
+
+      const provider = createAnthropic({
+        apiKey,
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      });
+      const model = provider("claude-sonnet-4-5-20250929");
+
+      const newConfig = draftConfig;
+      const savedInputs = steps.map((s) => s.input);
+      const freshSession = createSessionFromConfig(newConfig, model);
+
+      sessionRef.current = freshSession;
+      sessionConfigRef.current = newConfig;
+      setAppliedConfig(newConfig);
+      setDraftConfig(newConfig);
+
+      if (savedInputs.length === 0) {
+        persist([], newConfig);
         return;
       }
 
-      // SSE streaming response
       setIsRunning(true);
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+      setSteps(savedInputs.map((input) => ({
+        input,
+        columns: {},
+        computing: new Set<string>(),
+        isRunning: true,
+      })));
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for (const input of savedInputs) {
+        freshSession.input.push(input);
+      }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop()!;
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = JSON.parse(line.slice(6));
-
-          if (data.error) {
-            console.error("Config apply error:", data.error);
-            setIsRunning(false);
-            return;
-          }
-
-          if (data.done) {
-            setIsRunning(false);
-            return;
-          }
-
-          if (data.kind === "init") {
-            const { steps: initSteps, columnOrder: newOrder, config: newConfig } = data as {
-              steps: Array<{ input: string; columns: Record<string, string> }>;
-              columnOrder: string[];
-              config: SessionConfig;
-            };
-            setAppliedConfig(newConfig);
-            setDraftConfig(newConfig);
-            setSteps(
-              initSteps.map((s) => ({
-                ...s,
-                computing: new Set<string>(),
-                isRunning: false,
-              }))
-            );
-          } else if (data.kind === "start") {
-            const { column, step } = data as { column: string; step: number };
+      try {
+        for await (const event of freshSession.f.run()) {
+          if (event.kind === "start") {
             setSteps((prev) =>
               prev.map((s, i) =>
-                i === step
-                  ? { ...s, computing: new Set(s.computing).add(column), isRunning: true }
+                i === event.step
+                  ? { ...s, computing: new Set(s.computing).add(event.column), isRunning: true }
                   : s
               )
             );
-          } else if (data.kind === "delta") {
-            const { column, step, delta } = data as { column: string; step: number; delta: string };
+          } else if (event.kind === "delta") {
             setSteps((prev) =>
               prev.map((s, i) =>
-                i === step
-                  ? { ...s, columns: { ...s.columns, [column]: (s.columns[column] ?? "") + delta } }
+                i === event.step
+                  ? { ...s, columns: { ...s.columns, [event.column]: (s.columns[event.column] ?? "") + event.delta } }
                   : s
               )
             );
-          } else if (data.kind === "value") {
-            const { column, step, value: colValue } = data as { column: string; step: number; value: string };
+          } else if (event.kind === "value") {
             setSteps((prev) =>
               prev.map((s, i) =>
-                i === step
-                  ? { ...s, columns: { ...s.columns, [column]: colValue } }
+                i === event.step
+                  ? { ...s, columns: { ...s.columns, [event.column]: event.value } }
                   : s
               )
             );
           }
         }
+        setSteps((prev) => {
+          const updated = prev.map((s) => ({ ...s, isRunning: false, computing: new Set<string>() }));
+          persist(updated, newConfig);
+          return updated;
+        });
+      } catch (err) {
+        console.error("Config apply error:", err);
       }
-    } catch (err) {
-      console.error("Failed to apply config:", err);
       setIsRunning(false);
     }
-  }, [draftConfig]);
+  }, [mode, draftConfig, chatId, apiKey, steps, persist]);
 
   const resetDraft = useCallback(() => {
     setDraftConfig(appliedConfig);
@@ -296,5 +528,8 @@ export function useColumnar(): ColumnarState {
     resetDraft,
     sidebarOpen,
     setSidebarOpen,
+    mode,
+    apiKey,
+    setApiKey,
   };
 }

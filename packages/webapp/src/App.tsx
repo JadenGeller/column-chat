@@ -1,9 +1,19 @@
 import { useColumnar } from "./hooks/useColumnar.js";
 import { Chat } from "./components/Chat.js";
 import { Sidebar } from "./components/Sidebar.js";
+import { ApiKeyOverlay } from "./components/ApiKeyOverlay.js";
 
-export function App() {
-  const state = useColumnar();
+interface AppProps {
+  chatId: string;
+}
+
+export function App({ chatId }: AppProps) {
+  const state = useColumnar(chatId);
+
+  // Show API key overlay in local mode when no key is set
+  if (state.mode === "local" && !state.apiKey) {
+    return <ApiKeyOverlay onSubmit={state.setApiKey} />;
+  }
 
   return (
     <div className="app">

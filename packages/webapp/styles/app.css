@@ -1282,3 +1282,78 @@ body,
   display: flex;
   gap: 8px;
 }
+
+/* ===================================================
+   API KEY OVERLAY
+   =================================================== */
+
+.api-key-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--cream);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.api-key-dialog {
+  background: var(--cream);
+  border: 3px solid var(--black);
+  box-shadow: var(--shadow);
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.api-key-header {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.api-key-description {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.api-key-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px 12px;
+  border: var(--border-thick);
+  background: white;
+  outline: none;
+}
+
+.api-key-input:focus {
+  box-shadow: var(--shadow-sm);
+}
+
+.api-key-submit {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 10px 16px;
+  background: var(--black);
+  color: var(--cream);
+  border: var(--border-thick);
+  cursor: pointer;
+}
+
+.api-key-submit:hover:not(:disabled) {
+  background: var(--red);
+}
+
+.api-key-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
