@@ -147,6 +147,7 @@ function PresetPicker({ onSelect, onBuildOwn }: {
                   key={col.id}
                   className="preset-strip"
                   style={{ background: col.color }}
+                  data-name={displayName(col.name)}
                 />
               ))}
             </div>
