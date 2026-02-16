@@ -355,6 +355,8 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
                   </div>
                 )}
               </div>
+            ) : isGenerating ? (
+              <span className="config-generate-status">Generating...</span>
             ) : (
               <textarea
                 className="config-generate-input"
@@ -367,7 +369,6 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
                     handleGenerate();
                   }
                 }}
-                disabled={isGenerating}
                 rows={1}
               />
             )}

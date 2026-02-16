@@ -1143,8 +1143,12 @@ body,
   opacity: 0.6;
 }
 
-.config-generate-input:disabled {
-  opacity: 0.5;
+.config-generate-status {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--text-dim);
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 .config-generate-error {
