@@ -209,7 +209,7 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
         <ThreadPrimitive.Viewport className="thread-viewport">
           <ThreadPrimitive.Empty>
             <div className="thread-empty">
-              <div className="thread-empty-mark">Vol. I / No. 1</div>
+              <hr className="thread-empty-rule" />
               <h2>Column<br />Chat</h2>
               <hr className="thread-empty-rule" />
               <p>

@@ -320,7 +320,7 @@ body,
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  margin-top: 4px;
+  margin-top: 20px;
 }
 
 .preset-card {
@@ -749,7 +749,7 @@ body,
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 20px var(--content-inset) 28px;
+  padding: 28px var(--content-inset) 28px;
   background: var(--composer-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -866,7 +866,7 @@ body,
 .composer-links {
   display: flex;
   gap: 16px;
-  margin-top: 10px;
+  margin-top: 18px;
 }
 
 .composer-links .clear-button {
