@@ -119,6 +119,14 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
       entries.push({ key: `del-${id}`, name: col.name, kind: "deleted", columnId: id });
     }
   }
+  // Build a map of renamed columns (old name → new name) so we can
+  // ignore cascaded ref updates when checking for real context changes.
+  const renames = new Map<string, string>();
+  for (const [id, col] of draftById) {
+    const old = appliedById.get(id);
+    if (old && old.name !== col.name) renames.set(old.name, col.name);
+  }
+
   for (const [id, col] of draftById) {
     const old = appliedById.get(id);
     if (!old) continue;
@@ -127,7 +135,12 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
     if (old.systemPrompt !== col.systemPrompt) diffs.push("prompt");
     if (old.reminder !== col.reminder) diffs.push("reminder");
     if (old.color !== col.color) diffs.push("color");
-    if (JSON.stringify(old.context) !== JSON.stringify(col.context)) diffs.push("context");
+    // Normalize old context refs through renames before comparing
+    const normalizedOldContext = old.context.map((ref) => {
+      const renamed = renames.get(ref.column);
+      return renamed ? { ...ref, column: renamed } : ref;
+    });
+    if (JSON.stringify(normalizedOldContext) !== JSON.stringify(col.context)) diffs.push("context");
     if (diffs.length > 0) {
       entries.push({ key: `mod-${id}`, name: col.name || old.name || "untitled", detail: diffs.join(", "), kind: "modified", columnId: id });
     }

@@ -6,10 +6,11 @@ import { ApiKeyOverlay } from "./components/ApiKeyOverlay.js";
 
 interface AppProps {
   chatId: string;
+  initialConfig?: import("../shared/types.js").SessionConfig;
 }
 
-export function App({ chatId }: AppProps) {
-  const state = useColumnar(chatId);
+export function App({ chatId, initialConfig }: AppProps) {
+  const state = useColumnar(chatId, initialConfig);
   const scrollLeftRef = useRef(0);
   const [showApiKeyOverlay, setShowApiKeyOverlay] = useState(false);
 

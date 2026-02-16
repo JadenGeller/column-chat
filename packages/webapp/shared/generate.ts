@@ -197,6 +197,59 @@ export function parseGenerateResponse(text: string): Omit<ColumnConfig, "id">[] 
   return sorted;
 }
 
+/** Encode a session config as a shareable base64 string (strips IDs). */
+export function serializeConfig(config: SessionConfig): string {
+  const stripped = config.map(({ name, systemPrompt, reminder, color, context }) => ({
+    name, systemPrompt, reminder, color, context,
+  }));
+  return btoa(new TextEncoder().encode(JSON.stringify(stripped)).reduce((s, b) => s + String.fromCharCode(b), ""));
+}
+
+/** Decode a base64-encoded config string and assign fresh IDs. */
+export function deserializeConfig(encoded: string): SessionConfig {
+  let parsed: unknown;
+  try {
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("Invalid config link");
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("Invalid config link");
+  }
+
+  const RESERVED = new Set(["input", "self"]);
+  const allNames = new Set<string>();
+
+  return parsed.map((raw: any, i: number) => {
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    if (!name || RESERVED.has(name)) throw new Error("Invalid config link");
+    if (allNames.has(name)) throw new Error("Invalid config link");
+    allNames.add(name);
+
+    const systemPrompt = typeof raw.systemPrompt === "string" ? raw.systemPrompt : "";
+    const reminder = typeof raw.reminder === "string" ? raw.reminder : "";
+    const color = typeof raw.color === "string" ? raw.color : PRESET_COLORS[i % PRESET_COLORS.length];
+
+    const context: ColumnContextRef[] = Array.isArray(raw.context)
+      ? raw.context
+          .filter((ref: any) => {
+            const col = typeof ref.column === "string" ? ref.column : "";
+            return col === "input" || col === "self" || allNames.has(col);
+          })
+          .map((ref: any) => ({
+            column: ref.column,
+            row: ref.row === "previous" ? "previous" as const : "current" as const,
+            count: ref.count === "all" ? "all" as const : "single" as const,
+          }))
+      : [];
+
+    return { id: columnId(), name, systemPrompt, reminder, color, context };
+  });
+}
+
 /** Convert AI-generated columns into mutations against the current applied config. */
 export function configToMutations(
   generated: Omit<ColumnConfig, "id">[],

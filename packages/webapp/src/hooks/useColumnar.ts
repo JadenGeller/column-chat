@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { SessionConfig, Capabilities, Mutation, ColumnContextRef, ColumnConfig } from "../../shared/types.js";
 import { overlay, validateConfig } from "../../shared/types.js";
+import { serializeConfig } from "../../shared/generate.js";
 
 export interface Step {
   input: string;
@@ -36,6 +37,7 @@ export interface ColumnarState {
   setApiKey: (key: string) => void;
   loadPreset: (config: SessionConfig) => void;
   generateConfig: (prompt: string) => Promise<void>;
+  shareLink: string | null;
 }
 
 function deriveFromConfig(config: SessionConfig) {
@@ -126,7 +128,7 @@ function saveApiKey(key: string) {
 // Type for the local session ref
 type LocalSession = Awaited<ReturnType<typeof import("../../shared/flow.js").createSessionFromConfig>>;
 
-export function useColumnar(chatId: string): ColumnarState {
+export function useColumnar(chatId: string, initialConfig?: SessionConfig): ColumnarState {
   const [mode, setMode] = useState<"cloud" | "local" | null>(null);
   const [apiKey, setApiKeyState] = useState<string | null>(loadApiKey());
   const [steps, setSteps] = useState<Step[]>([]);
@@ -153,6 +155,11 @@ export function useColumnar(chatId: string): ColumnarState {
   const validationError = useMemo(() => validateConfig(draftConfig), [draftConfig]);
   const canApply = isDirty && !isRunning && !validationError && (mode === "cloud" || !!apiKey);
 
+  const shareLink = useMemo(() => {
+    if (appliedConfig.length === 0) return null;
+    return `${window.location.origin}/#config=${serializeConfig(appliedConfig)}`;
+  }, [appliedConfig]);
+
   const setApiKey = useCallback((key: string) => {
     saveApiKey(key);
     setApiKeyState(key);
@@ -177,8 +184,12 @@ export function useColumnar(chatId: string): ColumnarState {
         config: SessionConfig;
       }) => {
         setSteps(data.steps.map((s) => ({ ...s, computing: new Set<string>(), isRunning: false })));
-        setAppliedConfig(data.config);
-        setMutations([]);
+        if (data.steps.length === 0 && data.config.length === 0 && initialConfig?.length) {
+          loadPreset(initialConfig);
+        } else {
+          setAppliedConfig(data.config);
+          setMutations([]);
+        }
       })
       .catch(console.error);
   }, [mode, chatId]);
@@ -203,7 +214,8 @@ export function useColumnar(chatId: string): ColumnarState {
       const model = provider("claude-sonnet-4-5-20250929");
 
       const saved = loadChat(chatId);
-      const config = saved?.config ?? [];
+      const useInitial = !saved && initialConfig?.length;
+      const config = useInitial ? initialConfig : (saved?.config ?? []);
 
       // Build pre-populated store from saved steps
       const store: Record<string, string>[] = [];
@@ -229,6 +241,9 @@ export function useColumnar(chatId: string): ColumnarState {
       }
       setAppliedConfig(config);
       setMutations([]);
+      if (useInitial) {
+        persist([], config);
+      }
     })();
 
     return () => { cancelled = true; };
@@ -669,5 +684,6 @@ export function useColumnar(chatId: string): ColumnarState {
     setApiKey,
     loadPreset,
     generateConfig,
+    shareLink,
   };
 }
