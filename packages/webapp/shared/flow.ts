@@ -1,5 +1,5 @@
 import { source, column, self, flow, prompt, inMemoryStorage } from "columnar";
-import type { ContextInput, ColumnView, DerivedColumn, StorageProvider, Flow } from "columnar";
+import type { ContextInput, Column, Dependency, DerivedColumn, StorageProvider, Flow } from "columnar";
 import type { ConfigDiff } from "./config.js";
 import type { LanguageModel } from "ai";
 import type { SessionConfig, ColumnConfig, ColumnContextRef } from "./types.js";
@@ -11,34 +11,30 @@ function reminder(text: string) {
   ];
 }
 
-function resolveWindowMode(
-  view: ColumnView,
-  mode: ColumnContextRef["windowMode"]
-): ColumnView {
-  if (mode === "latest") return view.latest;
-  if (mode === "all") return view;
-  return view.window(mode.window);
+function resolveDependency(
+  ref: ColumnContextRef,
+  columnMap: Map<string, Column>,
+): Dependency {
+  if (ref.column === "self") {
+    return { column: self, row: "previous", count: ref.count };
+  }
+  const resolved = columnMap.get(ref.column);
+  if (!resolved) {
+    throw new Error(`Column references "${ref.column}" which doesn't exist or appears later in the config`);
+  }
+  return { column: resolved, row: ref.row, count: ref.count };
 }
 
 export function createColumnFromConfig(
   cfg: ColumnConfig,
-  columnMap: Map<string, ColumnView>,
+  columnMap: Map<string, Column>,
   storage: StorageProvider,
   model: LanguageModel
 ): DerivedColumn {
-  const contextViews: ColumnView[] = cfg.context.map((ref) => {
-    if (ref.column === "self") return resolveWindowMode(self, ref.windowMode);
-    const resolved = columnMap.get(ref.column);
-    if (!resolved) {
-      throw new Error(
-        `Column "${cfg.name}" references "${ref.column}" which doesn't exist or appears later in the config`
-      );
-    }
-    return resolveWindowMode(resolved, ref.windowMode);
-  });
+  const deps: Dependency[] = cfg.context.map((ref) => resolveDependency(ref, columnMap));
 
   return column(cfg.name, {
-    context: contextViews,
+    context: deps,
     transform: cfg.reminder ? reminder(cfg.reminder) : undefined,
     compute: prompt(model, cfg.systemPrompt, { stream: true }),
     storage,
@@ -49,7 +45,7 @@ export function createSessionFromConfig(config: SessionConfig, model: LanguageMo
   const storage = existingStorage ?? inMemoryStorage();
   const input = source("input", { storage });
 
-  const columnMap = new Map<string, ColumnView>();
+  const columnMap = new Map<string, Column>();
   columnMap.set("input", input);
 
   const leafColumns: DerivedColumn[] = [];
@@ -67,10 +63,10 @@ export function createSessionFromConfig(config: SessionConfig, model: LanguageMo
 }
 
 export function applyConfigUpdate(
-  session: { f: Flow; columnMap: Map<string, ColumnView>; storage: StorageProvider },
+  session: { f: Flow; columnMap: Map<string, Column>; storage: StorageProvider },
   diff: ConfigDiff,
   newConfig: SessionConfig,
-  createColumn: (cfg: ColumnConfig, columnMap: Map<string, ColumnView>, storage: StorageProvider) => DerivedColumn,
+  createColumn: (cfg: ColumnConfig, columnMap: Map<string, Column>, storage: StorageProvider) => DerivedColumn,
 ): void {
   // Cascade removals (leaves-first using dependents + reverse topo order)
   const toRemove = new Set<string>();

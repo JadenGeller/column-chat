@@ -1,57 +1,50 @@
 import type {
   Message,
-  ColumnView,
   Column,
-  WindowMode,
+  Dependency,
   ContextInput,
 } from "./types.js";
 import { SELF_MARKER } from "./types.js";
 
-// Compute the step range for a view
+// Compute the step range for a dependency
 function stepRange(
-  windowMode: WindowMode,
+  row: "current" | "previous",
+  count: "single" | "all",
   currentStep: number,
-  isSelf: boolean
 ): Set<number> {
   const steps = new Set<number>();
 
-  // Self excludes current step; inputs include current step
-  const maxStep = isSelf ? currentStep - 1 : currentStep;
+  const maxStep = row === "previous" ? currentStep - 1 : currentStep;
 
   if (maxStep < 0) return steps;
 
-  switch (windowMode.kind) {
+  switch (count) {
     case "all":
       for (let i = 0; i <= maxStep; i++) steps.add(i);
       break;
-    case "latest":
+    case "single":
       steps.add(maxStep);
       break;
-    case "window": {
-      const start = Math.max(0, maxStep - windowMode.n + 1);
-      for (let i = start; i <= maxStep; i++) steps.add(i);
-      break;
-    }
   }
 
   return steps;
 }
 
-// Internal: column views → plain ContextInput[] (resolves self, windowing, storage, XML wrapping)
+// Internal: dependencies → plain ContextInput[] (resolves self, step ranges, storage, XML wrapping)
 export function resolveContextInputs(
-  context: ColumnView[],
+  context: Dependency[],
   thisColumn: Column,
   currentStep: number,
 ): ContextInput[] {
-  return context.map((view) => {
-    const column = view._column === SELF_MARKER ? thisColumn : (view._column as Column);
-    const isSelf = view._column === SELF_MARKER;
-    const steps = stepRange(view._windowMode, currentStep, isSelf);
+  return context.map((dep) => {
+    const isSelf = dep.column === SELF_MARKER;
+    const column = isSelf ? thisColumn : (dep.column as Column);
+    const steps = stepRange(dep.row, dep.count, currentStep);
     const entries: { step: number; value: string }[] = [];
     for (const step of [...steps].sort((a, b) => a - b)) {
       const raw = column.storage.get(step);
       if (raw !== undefined) {
-        const value = isSelf ? raw : `<${view._name}>\n${raw}\n</${view._name}>`;
+        const value = isSelf ? raw : `<${column.name}>\n${raw}\n</${column.name}>`;
         entries.push({ step, value });
       }
     }

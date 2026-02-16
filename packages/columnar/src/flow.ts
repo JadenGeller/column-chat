@@ -1,11 +1,11 @@
 import type {
   Column,
-  ColumnView,
+  Dependency,
   DerivedColumn,
   SourceColumn,
   FlowEvent,
 } from "./types.js";
-import { isSelfView } from "./column.js";
+import { SELF_MARKER } from "./types.js";
 import { assembleMessages, resolveContextInputs } from "./context.js";
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<string> {
@@ -17,7 +17,7 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<string> {
 }
 
 async function* computeColumn(col: DerivedColumn, step: number): AsyncGenerator<FlowEvent> {
-  yield { kind: "start" as const, column: col._name, step };
+  yield { kind: "start" as const, column: col.name, step };
   let inputs = resolveContextInputs(col.context, col, step);
   if (col.transform) inputs = col.transform(inputs, step);
   const messages = assembleMessages(inputs);
@@ -27,14 +27,14 @@ async function* computeColumn(col: DerivedColumn, step: number): AsyncGenerator<
     let accumulated = "";
     for await (const delta of result) {
       accumulated += delta;
-      yield { kind: "delta" as const, column: col._name, step, delta };
+      yield { kind: "delta" as const, column: col.name, step, delta };
     }
     col.storage.push(accumulated);
-    yield { kind: "value" as const, column: col._name, step, value: accumulated };
+    yield { kind: "value" as const, column: col.name, step, value: accumulated };
   } else {
     const value = await result;
     col.storage.push(value);
-    yield { kind: "value" as const, column: col._name, step, value };
+    yield { kind: "value" as const, column: col.name, step, value };
   }
 }
 
@@ -83,9 +83,9 @@ function discoverDAG(leaves: Column[]): {
       sources.push(col);
     } else {
       derived.push(col);
-      for (const view of col.context) {
-        if (!isSelfView(view)) {
-          visit(view._column as Column);
+      for (const dep of col.context) {
+        if (dep.column !== SELF_MARKER) {
+          visit(dep.column as Column);
         }
       }
     }
@@ -99,20 +99,22 @@ function discoverDAG(leaves: Column[]): {
 }
 
 // Topological sort into levels using Kahn's algorithm.
-// Columns within the same level have no dependencies on each other and can run in parallel.
+// Only row: 'current' edges create ordering constraints.
+// Columns connected only by row: 'previous' edges can run in parallel.
 function topoSort(derived: DerivedColumn[], allColumns: Set<Column>): DerivedColumn[][] {
   const inDegree = new Map<DerivedColumn, number>();
   const dependents = new Map<Column, DerivedColumn[]>();
 
   for (const col of derived) {
     let deg = 0;
-    for (const view of col.context) {
-      if (!isSelfView(view)) {
-        const dep = view._column as Column;
-        if (dep.kind === "derived" && allColumns.has(dep)) {
+    for (const dep of col.context) {
+      // Only row: 'current' edges create ordering constraints
+      if (dep.column !== SELF_MARKER && dep.row === "current") {
+        const target = dep.column as Column;
+        if (target.kind === "derived" && allColumns.has(target)) {
           deg++;
-          if (!dependents.has(dep)) dependents.set(dep, []);
-          dependents.get(dep)!.push(col);
+          if (!dependents.has(target)) dependents.set(target, []);
+          dependents.get(target)!.push(col);
         }
       }
     }
@@ -154,10 +156,10 @@ function topoSort(derived: DerivedColumn[], allColumns: Set<Column>): DerivedCol
 function buildNameMap(columns: Column[]): Map<string, Column> {
   const map = new Map<string, Column>();
   for (const col of columns) {
-    if (map.has(col._name)) {
-      throw new Error(`Duplicate column name: ${col._name}`);
+    if (map.has(col.name)) {
+      throw new Error(`Duplicate column name: ${col.name}`);
     }
-    map.set(col._name, col);
+    map.set(col.name, col);
   }
   return map;
 }
@@ -224,23 +226,44 @@ export function flow(...leaves: Column[]): Flow {
     return col.storage.get(step);
   }
 
-  function dependents(name: string): string[] {
+  function dependentsOf(name: string): string[] {
     const col = nameMap.get(name);
     if (!col) return [];
 
-    // Collect transitive dependents using the topologically sorted levels
-    const dirty = new Set<Column>([col]);
-    const result: string[] = [];
+    // Build reverse adjacency map (ALL edge types — both current and previous)
+    const reverseDeps = new Map<Column, DerivedColumn[]>();
+    for (const d of derived) {
+      for (const dep of d.context) {
+        if (dep.column !== SELF_MARKER) {
+          const target = dep.column as Column;
+          if (!reverseDeps.has(target)) reverseDeps.set(target, []);
+          reverseDeps.get(target)!.push(d);
+        }
+      }
+    }
 
+    // BFS with visited set (handles cycles from row: 'previous' edges)
+    const visited = new Set<Column>([col]);
+    const queue: Column[] = [col];
+    const resultSet = new Set<DerivedColumn>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const d of reverseDeps.get(current) ?? []) {
+        if (!visited.has(d)) {
+          visited.add(d);
+          resultSet.add(d);
+          queue.push(d);
+        }
+      }
+    }
+
+    // Return in topological order (by sortedLevels position)
+    const result: string[] = [];
     for (const level of sortedLevels) {
       for (const d of level) {
-        if (dirty.has(d)) continue;
-        for (const view of d.context) {
-          if (!isSelfView(view) && dirty.has(view._column as Column)) {
-            dirty.add(d);
-            result.push(d._name);
-            break;
-          }
+        if (resultSet.has(d)) {
+          result.push(d.name);
         }
       }
     }
@@ -252,17 +275,17 @@ export function flow(...leaves: Column[]): Flow {
     if (allSet.has(col)) return;
 
     // Auto-discover source dependencies; validate derived deps exist
-    for (const view of col.context) {
-      if (!isSelfView(view)) {
-        const dep = view._column as Column;
-        if (!allSet.has(dep)) {
-          if (dep.kind === "source") {
-            allSet.add(dep);
-            sources.push(dep);
-            nameMap.set(dep._name, dep);
+    for (const dep of col.context) {
+      if (dep.column !== SELF_MARKER) {
+        const target = dep.column as Column;
+        if (!allSet.has(target)) {
+          if (target.kind === "source") {
+            allSet.add(target);
+            sources.push(target);
+            nameMap.set(target.name, target);
           } else {
             throw new Error(
-              `Dependency "${dep._name}" not found in flow`
+              `Dependency "${target.name}" not found in flow`
             );
           }
         }
@@ -271,7 +294,7 @@ export function flow(...leaves: Column[]): Flow {
 
     allSet.add(col);
     derived.push(col);
-    nameMap.set(col._name, col);
+    nameMap.set(col.name, col);
 
     // Re-sort — run() will handle backfill since col.storage.length === 0
     sortedLevels = topoSort(derived, allSet);
@@ -285,10 +308,10 @@ export function flow(...leaves: Column[]): Flow {
     // Check no remaining derived column depends on it
     for (const d of derived) {
       if (d === col) continue;
-      for (const view of d.context) {
-        if (!isSelfView(view) && view._column === col) {
+      for (const dep of d.context) {
+        if (dep.column !== SELF_MARKER && dep.column === col) {
           throw new Error(
-            `Cannot remove "${name}": column "${d._name}" depends on it`
+            `Cannot remove "${name}": column "${d.name}" depends on it`
           );
         }
       }
@@ -304,12 +327,12 @@ export function flow(...leaves: Column[]): Flow {
     const oldCol = nameMap.get(name);
     if (!oldCol) throw new Error(`Column "${name}" not found in flow`);
     if (oldCol.kind === "source") throw new Error(`Cannot replace source column "${name}"`);
-    if (newCol._name !== name) {
-      throw new Error(`Replacement column name "${newCol._name}" must match "${name}"`);
+    if (newCol.name !== name) {
+      throw new Error(`Replacement column name "${newCol.name}" must match "${name}"`);
     }
 
     // Compute transitive dependents of old column (excluding itself)
-    const depNames = dependents(name);
+    const depNames = dependentsOf(name);
     const deps = depNames.map(n => nameMap.get(n) as DerivedColumn);
 
     // Swap old for new
@@ -319,28 +342,21 @@ export function flow(...leaves: Column[]): Flow {
     derived[idx] = newCol;
     nameMap.set(name, newCol);
 
-    // Fix up context views: dependent columns' views that point to oldCol must point to newCol
-    for (const dep of deps) {
-      const ctx = dep.context as ColumnView[];
+    // Fix up context: dependent columns' deps that point to oldCol must point to newCol
+    for (const depCol of deps) {
+      const ctx = depCol.context as Dependency[];
       for (let i = 0; i < ctx.length; i++) {
-        if (!isSelfView(ctx[i]) && ctx[i]._column === oldCol) {
-          const mode = ctx[i]._windowMode;
-          const viewName = ctx[i]._name;
-          let view: ColumnView;
-          if (mode.kind === "latest") view = newCol.latest;
-          else if (mode.kind === "window") view = newCol.window(mode.n);
-          else view = newCol as ColumnView;
-          if (viewName !== view._name) view = view.as(viewName);
-          ctx[i] = view;
+        if (ctx[i].column !== SELF_MARKER && ctx[i].column === oldCol) {
+          ctx[i] = { ...ctx[i], column: newCol };
         }
       }
     }
 
     // Validate new column's deps all exist in flow
-    for (const view of newCol.context) {
-      if (!isSelfView(view) && !allSet.has(view._column as Column)) {
+    for (const dep of newCol.context) {
+      if (dep.column !== SELF_MARKER && !allSet.has(dep.column as Column)) {
         throw new Error(
-          `Dependency "${(view._column as Column)._name}" not found in flow`
+          `Dependency "${(dep.column as Column).name}" not found in flow`
         );
       }
     }
@@ -355,5 +371,5 @@ export function flow(...leaves: Column[]): Flow {
     }
   }
 
-  return { run, get, dependents, addColumn, removeColumn, replaceColumn };
+  return { run, get, dependents: dependentsOf, addColumn, removeColumn, replaceColumn };
 }

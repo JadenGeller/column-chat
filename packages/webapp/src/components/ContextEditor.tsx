@@ -22,7 +22,7 @@ export function ContextEditor({ context, availableColumns, onChange }: ContextEd
   };
 
   const addRef = () => {
-    onChange([...context, { column: "input", windowMode: "all" }]);
+    onChange([...context, { column: "input", row: "current", count: "all" }]);
   };
 
   return (
@@ -33,7 +33,14 @@ export function ContextEditor({ context, availableColumns, onChange }: ContextEd
           <select
             className="context-select"
             value={ref.column}
-            onChange={(e) => updateRef(i, { column: e.target.value })}
+            onChange={(e) => {
+              const col = e.target.value;
+              if (col === "self") {
+                updateRef(i, { column: col, row: "previous" });
+              } else {
+                updateRef(i, { column: col });
+              }
+            }}
           >
             {columnOptions.map((col) => (
               <option key={col} value={col}>
@@ -43,37 +50,21 @@ export function ContextEditor({ context, availableColumns, onChange }: ContextEd
           </select>
           <select
             className="context-select context-mode"
-            value={
-              typeof ref.windowMode === "object"
-                ? "window"
-                : ref.windowMode
-            }
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "window") {
-                updateRef(i, { windowMode: { window: 3 } });
-              } else {
-                updateRef(i, { windowMode: v as "all" | "latest" });
-              }
-            }}
+            value={ref.row}
+            onChange={(e) => updateRef(i, { row: e.target.value as "current" | "previous" })}
+            disabled={ref.column === "self"}
+          >
+            <option value="current">current</option>
+            <option value="previous">previous</option>
+          </select>
+          <select
+            className="context-select context-mode"
+            value={ref.count}
+            onChange={(e) => updateRef(i, { count: e.target.value as "single" | "all" })}
           >
             <option value="all">all</option>
-            <option value="latest">latest</option>
-            <option value="window">window</option>
+            <option value="single">single</option>
           </select>
-          {typeof ref.windowMode === "object" && (
-            <input
-              type="number"
-              className="context-window-input"
-              min={1}
-              value={ref.windowMode.window}
-              onChange={(e) =>
-                updateRef(i, {
-                  windowMode: { window: Math.max(1, parseInt(e.target.value) || 1) },
-                })
-              }
-            />
-          )}
           <button
             className="context-remove"
             onClick={() => removeRef(i)}

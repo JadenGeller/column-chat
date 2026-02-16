@@ -6,12 +6,17 @@ const model = anthropic("claude-sonnet-4-5-20250929");
 const user = source("user");
 
 const topics = column("topics", {
-  context: [user.latest],
+  context: [
+    { column: user, row: "current", count: "single" },
+  ],
   compute: prompt(model, "Respond ONLY with a comma-separated list of topics. No explanation."),
 });
 
 const assistant = column("assistant", {
-  context: [user, self],
+  context: [
+    { column: user, row: "current", count: "all" },
+    { column: self, row: "previous", count: "all" },
+  ],
   compute: prompt(model, "You are a helpful assistant. Keep responses brief."),
 });
 

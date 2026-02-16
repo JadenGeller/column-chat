@@ -212,8 +212,8 @@ export function ConfigEditor({ state }: ConfigEditorProps) {
       reminder: "",
       color,
       context: [
-        { column: "input", windowMode: "all" },
-        { column: "self", windowMode: "all" },
+        { column: "input", row: "current", count: "all" },
+        { column: "self", row: "previous", count: "all" },
       ],
     };
     updateDraft([...draftConfig, newCol]);

@@ -1,9 +1,3 @@
-// Window modes for column views
-export type WindowMode =
-  | { kind: "all" }
-  | { kind: "latest" }
-  | { kind: "window"; n: number };
-
 // AI SDK compatible message
 export type Message = {
   role: "user" | "assistant";
@@ -35,35 +29,19 @@ export type FlowEvent =
 // Internal sentinel for self-reference
 export const SELF_MARKER = Symbol("self");
 
-// A view on a column: windowing + optional name override
-// Public API: .latest, .window(n), .as(name)
-export interface ColumnView {
-  readonly _column: SourceColumn | DerivedColumn | typeof SELF_MARKER;
-  readonly _windowMode: WindowMode;
-  readonly _name: string;
-  readonly latest: ColumnView;
-  window(n: number): ColumnView;
-  as(name: string): ColumnView;
-}
-
-export interface SourceColumn extends ColumnView {
+export interface SourceColumn {
   readonly kind: "source";
+  readonly name: string;
   readonly storage: ColumnStorage;
   push(value: string): void;
 }
 
-// Transform function: modify resolved inputs before assembly
-export type TransformFunction = (inputs: ContextInput[], step: number) => ContextInput[];
-
-export interface DerivedColumn extends ColumnView {
-  readonly kind: "derived";
-  readonly storage: ColumnStorage;
-  readonly context: ColumnView[];
-  readonly compute: ComputeFunction;
-  readonly transform?: TransformFunction;
-}
-
-export type Column = SourceColumn | DerivedColumn;
+// A dependency declaration: { column, row, count }
+export type Dependency = {
+  column: SourceColumn | DerivedColumn | typeof SELF_MARKER;
+  row: "current" | "previous";
+  count: "single" | "all";
+};
 
 // Plain-data types for the public assembleMessages API
 export type ContextEntry = { step: number; value: string };
@@ -71,3 +49,17 @@ export type ContextInput = {
   role: "user" | "assistant";
   entries: ContextEntry[];
 };
+
+// Transform function: modify resolved inputs before assembly
+export type TransformFunction = (inputs: ContextInput[], step: number) => ContextInput[];
+
+export interface DerivedColumn {
+  readonly kind: "derived";
+  readonly name: string;
+  readonly storage: ColumnStorage;
+  readonly context: Dependency[];
+  readonly compute: ComputeFunction;
+  readonly transform?: TransformFunction;
+}
+
+export type Column = SourceColumn | DerivedColumn;

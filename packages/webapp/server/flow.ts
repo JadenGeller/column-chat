@@ -1,6 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
-import type { ColumnView, DerivedColumn, StorageProvider } from "columnar";
+import type { Column, DerivedColumn, StorageProvider } from "columnar";
 import type { SessionConfig, ColumnConfig } from "../shared/types.js";
 import {
   createSessionFromConfig as _createSessionFromConfig,
@@ -11,7 +11,7 @@ const model: LanguageModel = anthropic("claude-sonnet-4-5-20250929");
 
 export function createColumnFromConfig(
   cfg: ColumnConfig,
-  columnMap: Map<string, ColumnView>,
+  columnMap: Map<string, Column>,
   storage: StorageProvider
 ): DerivedColumn {
   return _createColumnFromConfig(cfg, columnMap, storage, model);

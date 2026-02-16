@@ -7,7 +7,7 @@ export type {
   Message,
   ComputeFunction,
   FlowEvent,
-  ColumnView,
+  Dependency,
   ColumnStorage,
   StorageProvider,
   SourceColumn,

@@ -1,10 +1,9 @@
 import type {
-  WindowMode,
-  ColumnView,
   ColumnStorage,
   StorageProvider,
   SourceColumn,
   DerivedColumn,
+  Dependency,
   ComputeFunction,
   TransformFunction,
 } from "./types.js";
@@ -52,89 +51,44 @@ export function inMemoryStorage(
   };
 }
 
-// Create a view object with chaining methods
-function createView(
-  column: ColumnView["_column"],
-  windowMode: WindowMode,
-  name: string
-): ColumnView {
-  return {
-    _column: column,
-    _windowMode: windowMode,
-    _name: name,
-    get latest(): ColumnView {
-      return createView(column, { kind: "latest" }, name);
-    },
-    window(n: number): ColumnView {
-      return createView(column, { kind: "window", n }, name);
-    },
-    as(newName: string): ColumnView {
-      return createView(column, windowMode, newName);
-    },
-  };
-}
-
 export function source(
   name: string,
   options?: { storage?: StorageProvider }
 ): SourceColumn {
   const storage = (options?.storage ?? inMemoryStorage())(name);
-  const col = {
-    ...createView(null as any, { kind: "all" }, name),
-    kind: "source" as const,
+  return {
+    kind: "source",
+    name,
     storage,
     push(value: string): void {
       storage.push(value);
     },
-  } as SourceColumn;
-
-  // Fix self-reference: _column points to itself
-  (col as any)._column = col;
-
-  // Fix view methods to reference the correct column
-  Object.defineProperty(col, "latest", {
-    get(): ColumnView {
-      return createView(col, { kind: "latest" }, name);
-    },
-  });
-  col.window = (n: number) => createView(col, { kind: "window", n }, name);
-  col.as = (newName: string) => createView(col, { kind: "all" }, newName);
-
-  return col;
+  };
 }
 
 export function column(
   name: string,
-  options: { context: ColumnView[]; compute: ComputeFunction; transform?: TransformFunction; storage?: StorageProvider }
+  options: { context: Dependency[]; compute: ComputeFunction; transform?: TransformFunction; storage?: StorageProvider }
 ): DerivedColumn {
+  if (options.context.length === 0) {
+    throw new Error(`Column "${name}" must have at least one dependency`);
+  }
+  for (const dep of options.context) {
+    if (dep.column === SELF_MARKER && dep.row !== "previous") {
+      throw new Error(`Column "${name}": self dependency must have row: 'previous'`);
+    }
+  }
+
   const storage = (options.storage ?? inMemoryStorage())(name);
-  const col = {
-    ...createView(null as any, { kind: "all" }, name),
-    kind: "derived" as const,
+  return {
+    kind: "derived",
+    name,
     storage,
     context: options.context,
     compute: options.compute,
     transform: options.transform,
-  } as DerivedColumn;
-
-  // Fix self-reference
-  (col as any)._column = col;
-
-  Object.defineProperty(col, "latest", {
-    get(): ColumnView {
-      return createView(col, { kind: "latest" }, name);
-    },
-  });
-  col.window = (n: number) => createView(col, { kind: "window", n }, name);
-  col.as = (newName: string) => createView(col, { kind: "all" }, newName);
-
-  return col;
+  };
 }
 
-// The `self` sentinel — a column view whose _column is SELF_MARKER
-export const self: ColumnView = createView(SELF_MARKER, { kind: "all" }, "self");
-
-// Helper to check if a view references self
-export function isSelfView(view: ColumnView): boolean {
-  return view._column === SELF_MARKER;
-}
+// The `self` sentinel — use in dependency declarations: { column: self, row: 'previous', count: 'all' }
+export const self: typeof SELF_MARKER = SELF_MARKER;

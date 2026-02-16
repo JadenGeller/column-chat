@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { source, column, self, flow, inMemoryStorage } from "columnar";
-import type { ColumnView, DerivedColumn, StorageProvider } from "columnar";
+import type { Column, DerivedColumn, Dependency, StorageProvider } from "columnar";
 import { applyConfigUpdate } from "../flow.js";
 import { diffConfigs } from "../config.js";
 import type { ColumnConfig, SessionConfig } from "../types.js";
@@ -15,26 +15,24 @@ function col(
     systemPrompt: `prompt-${name}`,
     reminder: "",
     color: "#000",
-    context: deps.map((d) => ({ column: d, windowMode: "latest" as const })),
+    context: deps.map((d) => ({ column: d, row: "current" as const, count: "single" as const })),
     ...overrides,
   };
 }
 
 function testColumnFactory(
   cfg: ColumnConfig,
-  columnMap: Map<string, ColumnView>,
+  columnMap: Map<string, Column>,
   storage: StorageProvider,
 ): DerivedColumn {
-  const views = cfg.context.map((ref) => {
-    if (ref.column === "self") return self;
+  const deps: Dependency[] = cfg.context.map((ref) => {
+    if (ref.column === "self") return { column: self, row: "previous" as const, count: ref.count };
     const resolved = columnMap.get(ref.column);
     if (!resolved) throw new Error(`Missing column: ${ref.column}`);
-    if (ref.windowMode === "latest") return resolved.latest;
-    if (ref.windowMode === "all") return resolved;
-    return resolved.window(ref.windowMode.window);
+    return { column: resolved, row: ref.row, count: ref.count };
   });
   return column(cfg.name, {
-    context: views,
+    context: deps,
     compute: () => `${cfg.name}-value`,
     storage,
   });
@@ -43,7 +41,7 @@ function testColumnFactory(
 function createTestSession(configs: ColumnConfig[]) {
   const storage = inMemoryStorage();
   const input = source("input", { storage });
-  const columnMap = new Map<string, ColumnView>();
+  const columnMap = new Map<string, Column>();
   columnMap.set("input", input);
 
   const derived: DerivedColumn[] = [];

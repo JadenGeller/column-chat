@@ -24,7 +24,10 @@ describe("context assembly", () => {
   test("example 1: standard chat accumulator", () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user, self],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "all" },
+      ],
       compute: async () => "",
     });
 
@@ -45,7 +48,9 @@ describe("context assembly", () => {
   test("example 2: stateless map", () => {
     const user = source("user");
     const topics = column("topics", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -69,7 +74,10 @@ describe("context assembly", () => {
   test("example 3: reducer at step 0", () => {
     const user = source("user");
     const summary = column("summary", {
-      context: [user, self.latest],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -85,7 +93,10 @@ describe("context assembly", () => {
   test("example 3: reducer at step 1", () => {
     const user = source("user");
     const summary = column("summary", {
-      context: [user, self.latest],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -103,7 +114,10 @@ describe("context assembly", () => {
   test("example 3: reducer at step 2 (merges consecutive user messages)", () => {
     const user = source("user");
     const summary = column("summary", {
-      context: [user, self.latest],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -124,7 +138,10 @@ describe("context assembly", () => {
     const summaryCol = source("summary"); // using source as stand-in for a derived column with known values
 
     const critique = column("critique", {
-      context: [summaryCol.latest, user.latest],
+      context: [
+        { column: summaryCol, row: "current", count: "single" },
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -147,7 +164,11 @@ describe("context assembly", () => {
     const topics = source("topics"); // stand-in
 
     const analysis = column("analysis", {
-      context: [user, topics, self],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: topics, row: "current", count: "all" },
+        { column: self, row: "previous", count: "all" },
+      ],
       compute: async () => "",
     });
 
@@ -180,7 +201,9 @@ describe("context assembly", () => {
     const steelman = source("steelman"); // stand-in
 
     const critic = column("critic", {
-      context: [steelman.latest],
+      context: [
+        { column: steelman, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -193,33 +216,17 @@ describe("context assembly", () => {
     ]);
   });
 
-  // Example 7: Window(n)
-  test("example 7: window(n)", () => {
-    const user = source("user");
-    const recent = column("recent", {
-      context: [user.window(2), self.latest],
-      compute: async () => "",
-    });
-
-    populate(user, ["Alpha", "Beta", "Gamma", "Delta"]);
-    populate(recent, ["Mentioned alpha.", "Alpha, then beta.", "Beta, then gamma."]);
-
-    const messages = assemble(recent, 3);
-    expect(messages).toEqual([
-      { role: "user", content: "<user>\nGamma\n</user>" },
-      { role: "assistant", content: "Beta, then gamma." },
-      { role: "user", content: "<user>\nDelta\n</user>" },
-    ]);
-  });
-
-  // Edge case: XML wrapping consistency with mixed windows
-  test("XML wrapping when context has multiple non-self entries with different windows", () => {
+  // Edge case: XML wrapping consistency with mixed count modes
+  test("XML wrapping when context has multiple non-self entries with different counts", () => {
     const user = source("user");
     const summaryCol = source("summary");
 
-    // user (all) + summary.latest => 2 inputs, always XML wrap
+    // user (all) + summary (single) => 2 inputs, always XML wrap
     const col = column("test", {
-      context: [user, summaryCol.latest],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: summaryCol, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -227,7 +234,6 @@ describe("context assembly", () => {
     populate(summaryCol, ["s0", "s1", "s2"]);
 
     // At step 2: user contributes steps 0-2, summary only step 2
-    // All user messages merge since there are no assistant messages between them
     const messages = assemble(col, 2);
     expect(messages).toEqual([
       {
@@ -238,25 +244,27 @@ describe("context assembly", () => {
     ]);
   });
 
-  // Edge case: .as() renames the XML tag
-  test("as() renames XML tag", () => {
+  // Validation: self must have row: 'previous'
+  test("self with row: 'current' throws", () => {
     const user = source("user");
-    const summaryCol = source("summary");
+    expect(() =>
+      column("bad", {
+        context: [
+          { column: user, row: "current", count: "all" },
+          { column: self, row: "current" as any, count: "all" },
+        ],
+        compute: async () => "",
+      })
+    ).toThrow("self dependency must have row: 'previous'");
+  });
 
-    const col = column("test", {
-      context: [summaryCol.latest.as("digest"), user.latest],
-      compute: async () => "",
-    });
-
-    populate(user, ["hello"]);
-    populate(summaryCol, ["sum"]);
-
-    const messages = assemble(col, 0);
-    expect(messages).toEqual([
-      {
-        role: "user",
-        content: "<digest>\nsum\n</digest>\n\n<user>\nhello\n</user>",
-      },
-    ]);
+  // Validation: at least one dependency required
+  test("empty context throws", () => {
+    expect(() =>
+      column("bad", {
+        context: [],
+        compute: async () => "",
+      })
+    ).toThrow("must have at least one dependency");
   });
 });

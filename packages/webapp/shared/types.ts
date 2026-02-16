@@ -1,6 +1,7 @@
 export interface ColumnContextRef {
   column: string; // "input", "self", or another column's name
-  windowMode: "all" | "latest" | { window: number };
+  row: "current" | "previous";
+  count: "single" | "all";
 }
 
 export interface ColumnConfig {

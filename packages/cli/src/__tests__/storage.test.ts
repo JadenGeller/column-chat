@@ -75,7 +75,10 @@ describe("fileSystemStorage", () => {
 
     const user = source("user", { storage });
     const assistant = column("assistant", {
-      context: [user, self],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "all" },
+      ],
       compute: ({ messages }) => {
         const lastMsg = messages[messages.length - 1];
         return `echo: ${lastMsg.content}`;
@@ -115,7 +118,10 @@ describe("fileSystemStorage", () => {
 
     const user = source("user", { storage });
     const assistant = column("assistant", {
-      context: [user, self],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "all" },
+      ],
       compute: ({ messages }) => {
         const lastMsg = messages[messages.length - 1];
         return `echo: ${lastMsg.content}`;

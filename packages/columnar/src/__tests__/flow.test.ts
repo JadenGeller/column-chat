@@ -6,7 +6,10 @@ describe("flow", () => {
   test("standard chat lifecycle: push, run, get", async () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user, self],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "all" },
+      ],
       compute: async ({ messages }) => {
         const last = messages[messages.length - 1].content;
         return `echo: ${last}`;
@@ -33,7 +36,10 @@ describe("flow", () => {
   test("multi-step conversation", async () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user, self],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "all" },
+      ],
       compute: async ({ messages }) => {
         return `reply ${messages.length}`;
       },
@@ -54,7 +60,9 @@ describe("flow", () => {
   test("idempotent run — yields nothing when nothing new", async () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "done",
     });
 
@@ -72,11 +80,15 @@ describe("flow", () => {
   test("DAG with chained columns", async () => {
     const user = source("user");
     const steelman = column("steelman", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `pro: ${messages[0].content}`,
     });
     const critic = column("critic", {
-      context: [steelman.latest],
+      context: [
+        { column: steelman, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `con: ${messages[0].content}`,
     });
 
@@ -97,36 +109,57 @@ describe("flow", () => {
     ]);
   });
 
-  test("cycle detection", () => {
+  test("row: 'current' cycle detection", () => {
     const user = source("user");
-    const a = column("a", {
-      context: [user.latest],
-      compute: async () => "",
-    });
-    const b = column("b", {
-      context: [a.latest],
-      compute: async () => "",
-    });
-    // Manually create a cycle: make a depend on b
-    // We need to construct this carefully
     const c1 = column("c1", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const c2 = column("c2", {
-      context: [c1.latest],
+      context: [
+        { column: c1, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
-    // Hack: make c1 depend on c2 to create a cycle
-    (c1 as any).context = [c2.latest];
+    // Create a current-row cycle: c1 depends on c2
+    (c1 as any).context = [{ column: c2, row: "current", count: "single" }];
 
     expect(() => flow(c2)).toThrow("Cycle detected");
+  });
+
+  test("row: 'previous' cycles are allowed (pipeline parallelism)", () => {
+    const input = source("input");
+    const A = column("A", {
+      context: [
+        { column: input, row: "current", count: "single" },
+      ],
+      compute: async () => "",
+    });
+    const B = column("B", {
+      context: [
+        { column: input, row: "current", count: "single" },
+        { column: A, row: "previous", count: "single" },
+      ],
+      compute: async () => "",
+    });
+    // Create previous-row cycle: A also depends on B.previous
+    (A as any).context = [
+      { column: input, row: "current", count: "single" },
+      { column: B, row: "previous", count: "single" },
+    ];
+
+    // Should NOT throw — previous-row cycles are valid
+    expect(() => flow(A, B)).not.toThrow();
   });
 
   test("addColumn backfills completed steps", async () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `reply: ${messages[0].content}`,
     });
 
@@ -141,7 +174,9 @@ describe("flow", () => {
 
     // Add a new column after 2 steps have been computed
     const wordcount = column("wordcount", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) =>
         String(messages[0].content.split(/\s+/).length),
     });
@@ -168,7 +203,9 @@ describe("flow", () => {
   test("get returns undefined for unknown column or step", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "x",
     });
 
@@ -183,7 +220,10 @@ describe("flow", () => {
   test("reducer pattern accumulates correctly", async () => {
     const user = source("user");
     const summary = column("summary", {
-      context: [user, self.latest],
+      context: [
+        { column: user, row: "current", count: "all" },
+        { column: self, row: "previous", count: "single" },
+      ],
       compute: async ({ messages }) => {
         // Just join all user content as a simple "summary"
         const userMsgs = messages
@@ -201,14 +241,14 @@ describe("flow", () => {
 
     user.push("beta");
     await f.run();
-    // At step 1: user sees [alpha, beta], self.latest sees step 0
+    // At step 1: user sees [alpha, beta], self.previous.single sees step 0
     // messages: user "<user>\nalpha\n</user>", assistant "<user>\nalpha\n</user>", user "<user>\nbeta\n</user>"
     expect(f.get("summary", 1)).toBe("<user>\nalpha\n</user> + <user>\nbeta\n</user>");
 
     user.push("gamma");
     await f.run();
-    // At step 2: user sees [alpha, beta, gamma], self.latest sees step 1
-    // self.latest = step 1 only, so steps 0-1 of user merge (no assistant between them at step 0)
+    // At step 2: user sees [alpha, beta, gamma], self.previous.single sees step 1
+    // self.previous.single = step 1 only, so steps 0-1 of user merge (no assistant between them at step 0)
     // messages: user "<user>\nalpha\n</user>\n\n<user>\nbeta\n</user>", assistant "...", user "<user>\ngamma\n</user>"
     expect(f.get("summary", 2)).toBe("<user>\nalpha\n</user>\n\n<user>\nbeta\n</user> + <user>\ngamma\n</user>");
   });
@@ -217,7 +257,10 @@ describe("flow", () => {
     const a = source("a");
     const b = source("b");
     const combined = column("combined", {
-      context: [a.latest, b.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+        { column: b, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => messages[0].content,
     });
 
@@ -235,7 +278,9 @@ describe("streaming", () => {
   test("streaming compute yields delta then value events", async () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async function* () {
         yield "Hello";
         yield " ";
@@ -263,7 +308,9 @@ describe("streaming", () => {
   test("accumulated value stored correctly", async () => {
     const user = source("user");
     const assistant = column("assistant", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async function* () {
         yield "a";
         yield "b";
@@ -281,14 +328,18 @@ describe("streaming", () => {
   test("mixed streaming and non-streaming columns run in parallel", async () => {
     const user = source("user");
     const streamer = column("streamer", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async function* () {
         yield "s1";
         yield "s2";
       },
     });
     const plain = column("plain", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "plain-value",
     });
 
@@ -320,7 +371,9 @@ describe("streaming", () => {
     const user = source("user");
     let yieldCount = 0;
     const assistant = column("assistant", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async function* () {
         yieldCount++;
         yield "tok1";
@@ -340,7 +393,9 @@ describe("streaming", () => {
   test("addColumn backfill with streaming compute", async () => {
     const user = source("user");
     const plain = column("plain", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "done",
     });
 
@@ -350,7 +405,9 @@ describe("streaming", () => {
     await f.run();
 
     const streamer = column("streamer", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async function* ({ messages }) {
         const text = messages[0].content;
         yield "got:";
@@ -370,11 +427,15 @@ describe("removeColumn", () => {
   test("removes column from flow", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "a-val",
     });
     const b = column("b", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "b-val",
     });
 
@@ -401,11 +462,15 @@ describe("removeColumn", () => {
   test("throws if dependents exist", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "a-val",
     });
     const b = column("b", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async () => "b-val",
     });
 
@@ -417,7 +482,9 @@ describe("removeColumn", () => {
   test("throws for unknown column", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const f = flow(a);
@@ -428,7 +495,9 @@ describe("removeColumn", () => {
   test("throws for source column", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const f = flow(a);
@@ -441,7 +510,9 @@ describe("replaceColumn", () => {
   test("replaces column and recomputes on run", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `v1: ${messages[0].content}`,
     });
 
@@ -453,7 +524,9 @@ describe("replaceColumn", () => {
 
     // Replace with new compute function
     const a2 = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `v2: ${messages[0].content}`,
     });
 
@@ -471,11 +544,15 @@ describe("replaceColumn", () => {
     const user = source("user");
     let aPrefix = "v1";
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => `${aPrefix}`,
     });
     const b = column("b", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `b(${messages[0].content})`,
     });
 
@@ -488,7 +565,9 @@ describe("replaceColumn", () => {
 
     // Replace a with new version
     const a2 = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "v2",
     });
 
@@ -507,7 +586,9 @@ describe("replaceColumn", () => {
   test("yields events for recomputed columns", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "old",
     });
 
@@ -516,7 +597,9 @@ describe("replaceColumn", () => {
     await f.run();
 
     const a2 = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "new",
     });
 
@@ -536,13 +619,17 @@ describe("replaceColumn", () => {
   test("throws if name mismatch", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const f = flow(a);
 
     const b = column("b", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -554,15 +641,21 @@ describe("dependents", () => {
   test("returns transitive dependents in topo order", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const b = column("b", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const c = column("c", {
-      context: [b.latest],
+      context: [
+        { column: b, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -575,7 +668,9 @@ describe("dependents", () => {
   test("returns empty for unknown column", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const f = flow(a);
@@ -585,7 +680,9 @@ describe("dependents", () => {
   test("returns empty for leaf column", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const f = flow(a);
@@ -595,19 +692,28 @@ describe("dependents", () => {
   test("handles diamond dependencies", () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const b = column("b", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const c = column("c", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
     const d = column("d", {
-      context: [b.latest, c.latest],
+      context: [
+        { column: b, row: "current", count: "single" },
+        { column: c, row: "current", count: "single" },
+      ],
       compute: async () => "",
     });
 
@@ -621,17 +727,42 @@ describe("dependents", () => {
     expect(deps.indexOf("d")).toBeGreaterThan(deps.indexOf("b"));
     expect(deps.indexOf("d")).toBeGreaterThan(deps.indexOf("c"));
   });
+
+  test("includes row: 'previous' dependents for invalidation", () => {
+    const input = source("input");
+    const A = column("A", {
+      context: [
+        { column: input, row: "current", count: "single" },
+      ],
+      compute: async () => "",
+    });
+    const B = column("B", {
+      context: [
+        { column: input, row: "current", count: "single" },
+        { column: A, row: "previous", count: "single" },
+      ],
+      compute: async () => "",
+    });
+
+    const f = flow(A, B);
+    // B depends on A via row: 'previous', so B is a dependent of A
+    expect(f.dependents("A")).toContain("B");
+  });
 });
 
 describe("replaceColumn context fixup", () => {
   test("dependent columns read from new column after replace", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "old-a",
     });
     const b = column("b", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `b(${messages[0].content})`,
     });
 
@@ -643,7 +774,9 @@ describe("replaceColumn context fixup", () => {
 
     // Replace a — b's context should now read from the new a
     const a2 = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "new-a",
     });
     f.replaceColumn("a", a2);
@@ -656,15 +789,21 @@ describe("replaceColumn context fixup", () => {
   test("deep chain fixup works through multiple levels", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "old",
     });
     const b = column("b", {
-      context: [a.latest],
+      context: [
+        { column: a, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `b:${messages[0].content}`,
     });
     const c = column("c", {
-      context: [b.latest],
+      context: [
+        { column: b, row: "current", count: "single" },
+      ],
       compute: async ({ messages }) => `c:${messages[0].content}`,
     });
 
@@ -673,7 +812,9 @@ describe("replaceColumn context fixup", () => {
     await f.run();
 
     const a2 = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "new",
     });
     f.replaceColumn("a", a2);
@@ -691,7 +832,9 @@ describe("ColumnStorage.clear", () => {
   test("clears values and resets length", async () => {
     const user = source("user");
     const a = column("a", {
-      context: [user.latest],
+      context: [
+        { column: user, row: "current", count: "single" },
+      ],
       compute: async () => "val",
     });
 

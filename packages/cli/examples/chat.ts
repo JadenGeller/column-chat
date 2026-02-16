@@ -9,7 +9,10 @@ const storage = fileSystemStorage(dataDir);
 const user = source("user", { storage });
 
 const assistant = column("assistant", {
-  context: [user, self],
+  context: [
+    { column: user, row: "current", count: "all" },
+    { column: self, row: "previous", count: "all" },
+  ],
   compute: prompt(model, "You are a helpful assistant. Keep responses brief."),
   storage,
 });

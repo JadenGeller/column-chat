@@ -12,7 +12,7 @@ function col(
     systemPrompt: `prompt-${name}`,
     reminder: "",
     color: "#000",
-    context: deps.map((d) => ({ column: d, windowMode: "latest" as const })),
+    context: deps.map((d) => ({ column: d, row: "current" as const, count: "single" as const })),
     ...overrides,
   };
 }
