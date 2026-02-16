@@ -6,19 +6,15 @@
 
 ## Context
 
-Every LLM call is shaped by what's in its context window. There are many approaches to managing this — agent orchestration, retrieval, dynamic tool selection — and they're powerful, but the context strategy is typically determined at runtime by the orchestration logic. Column Chat takes a different approach: context is declared as a static structure that you can see and edit.
+Every LLM call is shaped by what's in its context window. Most approaches to managing this — agent orchestration, retrieval, dynamic tool selection — determine the context strategy at runtime. Column Chat takes a different approach: context is declared as a static structure that you can see and edit.
 
-A conversation is decomposed into columns. Each column has a prompt and a list of dependencies — which other columns it reads and how much history it sees. The dependencies form a DAG. You look at it and know what each column will receive. The system resolves ordering from the graph and parallelizes columns whose dependencies are already met, so you get several focused analyses back nearly as fast as one.
+A conversation is decomposed into columns. Each column has a prompt and a list of dependencies — which other columns it reads and how much history it sees. The dependencies form a DAG. You look at it and know what each column will receive. The system resolves ordering from the graph and parallelizes what it can, so you get several focused analyses back nearly as fast as one.
 
 ## Columns
 
-All columns advance in lockstep. Each message you send is a step — every column produces one value, in dependency order. The result is a grid: rows are steps, columns are processes, each cell computed from declared dependencies. This is what makes it a conversation, not a prompt chain — columns carry state forward and evolve together over time.
+All columns advance in lockstep. Each message you send is a step — every column produces one value, in dependency order. The result is a grid: rows are steps, columns are processes, each cell computed from declared dependencies. Columns carry state forward and evolve together over time — this is what makes it a conversation, not a prompt chain.
 
-The simplest columns watch your input independently. An extractor pulls out action items. A translator rewrites each message. These are useful but they're doing what you could do with separate API calls.
-
-The interesting part is columns that read other columns. Say you have a summarizer maintaining a running digest. You want to track how your goals have shifted over the conversation. If it reads the full transcript, that's expensive and noisy. But if it reads the summarizer, it gets a clean, compressed version. Cheaper, faster, more focused.
-
-Or take a debate. A steelman column articulates the strongest version of your position. A critic reads the steelman and constructs the best counterargument. A synthesis reads both and finds where the real tension lies. The critic never sees your messages — it reads a refined version of your argument. Each column gets exactly the input it needs.
+The interesting part is columns that read other columns. A steelman column articulates the strongest version of your position. A critic reads the steelman and constructs the best counterargument. A synthesis reads both and finds where the real tension lies. The critic never sees your messages — it reads a refined version of your argument. Each column gets exactly the input it needs.
 
 This isn't agent orchestration. Nothing decides what to call next — every column runs the same way every step, on the inputs it declared. The structure is fixed; the conversation flows through it.
 
@@ -26,19 +22,15 @@ Your input stays immutable throughout. Each column's output lives in its own spa
 
 ## Memory
 
-Each column controls how much history it sees.
-
-A column that sees everything accumulates like a normal conversation. Rich, but context grows with every step.
-
-A column that sees only the latest value is stateless. Each step is independent — good for extraction, classification, anything where the answer depends only on the current input.
-
-A column that sees its own previous output and the current input is a reducer. It folds history forward: reading what just happened and its last summary, producing a new one. No matter how long the conversation gets, the reducer's context stays small. Downstream columns that read the reducer get the benefit of the full conversation in a compact form. This is how long conversations stay tractable — the reducer absorbs the cost of growing context so nothing downstream has to.
+Each dependency controls how much history it sees — full history or latest only — both for itself and for other columns it reads. Dependencies can read from the current step (creating ordering constraints) or the previous step (running in parallel). Reading the previous step lets columns depend on each other without creating cycles — everything runs in parallel, like a synchronous dataflow step. A column without self-dependency is a stateless map. A column that sees only its previous output is a reducer — downstream columns read it and get the full conversation compacted into a fixed-size window.
 
 ## Editing
 
-Because the structure is declarative, you can change it and see what happens. Rewrite a column's prompt. Rewire its dependencies. Add a new column to an existing conversation. The system re-derives everything that's affected — you don't re-run anything manually, you just change the declaration and watch the results update.
+Because the structure is declarative, you can change it and see what happens. Rewrite a prompt, rewire dependencies, add a new column mid-conversation. The system re-derives everything that's affected. New columns backfill from the beginning — not a one-shot summary, but a step-by-step replay, building up context as if they had been there from the start.
 
-When you add a column mid-conversation, it backfills from the beginning — not a one-shot summary, but a replay from message one, step by step, building up context as if it had been there from the start. When you edit a column, only downstream columns recompute. Remove a column and nothing else is affected.
+## Build Your Own
+
+Describe the pipeline you want in plain language and Opus 4.6 generates a complete column configuration — system prompts, dependencies, the full DAG. You can iterate on the result, edit it by hand, or use it as a starting point.
 
 ## Example: Brainstorm
 
