@@ -1,4 +1,4 @@
-import { useState, useCallback, useContext, useEffect, useRef, createContext, type FC } from "react";
+import { useState, useCallback, useContext, useEffect, useRef, createContext, type FC, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import {
   AssistantRuntimeProvider,
@@ -26,9 +26,10 @@ const ChatActionsContext = createContext<{
 
 interface ChatProps {
   state: ColumnarState;
+  scrollLeftRef: MutableRefObject<number>;
 }
 
-export function Chat({ state }: ChatProps) {
+export function Chat({ state, scrollLeftRef }: ChatProps) {
   const { steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage, clearChat, setEditing, dispatch, draftConfig } = state;
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage);
   const [focused, setFocusedRaw] = useState<string | null>(null);
@@ -63,6 +64,16 @@ export function Chat({ state }: ChatProps) {
       clearTimeout(scrollTimerRef.current);
     };
   }, []);
+
+  // Sync horizontal scroll position across views
+  useEffect(() => {
+    const viewport = document.querySelector(".thread-viewport");
+    if (!viewport) return;
+    viewport.scrollLeft = scrollLeftRef.current;
+    const onScroll = () => { scrollLeftRef.current = viewport.scrollLeft; };
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, [scrollLeftRef]);
 
   const setFocused = useCallback((name: string | null, color?: string) => {
     setFocusedRaw(name);

@@ -114,6 +114,7 @@ body,
    =================================================== */
 
 .app {
+  --content-inset: max(64px, calc((100vw - 960px) / 2));
   height: 100%;
   display: flex;
   position: relative;
@@ -190,7 +191,6 @@ body,
 }
 
 .chat-area {
-  --content-inset: max(64px, calc((100vw - 960px) / 2));
   flex: 1;
   min-width: 0;
   height: 100%;
@@ -829,7 +829,7 @@ body,
   flex-direction: row;
   gap: 12px;
   overflow-x: auto;
-  padding: 48px 48px 160px;
+  padding: 48px var(--content-inset) 160px;
   align-items: stretch;
   position: relative;
   z-index: 1;
@@ -837,7 +837,7 @@ body,
 
 .config-editor-row::after {
   content: "";
-  flex: 0 0 1px;
+  flex: 0 0 var(--content-inset);
 }
 
 .config-editor-row::-webkit-scrollbar {
@@ -881,12 +881,11 @@ body,
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 20px var(--content-inset, max(64px, calc((100vw - 960px) / 2))) 28px;
+  padding: 20px var(--content-inset) 28px;
   background: var(--composer-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   z-index: 10;
-  --content-inset: max(64px, calc((100vw - 960px) / 2));
 }
 
 .config-editor-footer::before,

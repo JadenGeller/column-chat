@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, type MutableRefObject } from "react";
 import type { ColumnarState } from "../hooks/useColumnar.js";
 import type { ColumnConfig, SessionConfig, Mutation } from "../../shared/types.js";
 import { PRESET_COLORS, displayName, columnId } from "../../shared/defaults.js";
@@ -6,6 +6,7 @@ import { ColumnConfigCard } from "./ColumnConfigCard.js";
 
 interface ConfigEditorProps {
   state: ColumnarState;
+  scrollLeftRef: MutableRefObject<number>;
 }
 
 interface ImpactEntry {
@@ -131,12 +132,23 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
   return items;
 }
 
-export function ConfigEditor({ state }: ConfigEditorProps) {
+export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
   const [confirmEntries, setConfirmEntries] = useState<ImpactEntry[] | null>(null);
   const [checkedNames, setCheckedNames] = useState<Set<string>>(new Set());
   const newColumnIdRef = useRef<string | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const { draftConfig, appliedConfig, mutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft } = state;
   const summary = changeSummary(mutations, appliedConfig, draftConfig);
+
+  // Sync horizontal scroll position across views
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    row.scrollLeft = scrollLeftRef.current;
+    const onScroll = () => { scrollLeftRef.current = row.scrollLeft; };
+    row.addEventListener("scroll", onScroll, { passive: true });
+    return () => row.removeEventListener("scroll", onScroll);
+  }, [scrollLeftRef]);
 
   const addColumn = () => {
     const usedColors = new Set(draftConfig.map((c) => c.color));
@@ -200,7 +212,7 @@ export function ConfigEditor({ state }: ConfigEditorProps) {
 
   return (
     <div className="config-editor">
-      <div className="config-editor-row">
+      <div className="config-editor-row" ref={rowRef}>
         {draftConfig.map((col, i) => {
           const isNew = col.id === newColumnIdRef.current;
           if (isNew) newColumnIdRef.current = null;
