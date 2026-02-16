@@ -2,6 +2,8 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { createSessionFromConfig, createColumnFromConfig } from "./flow.js";
 import { DEFAULT_CONFIG } from "../shared/defaults.js";
+import { diffConfigs } from "../shared/config.js";
+import { applyConfigUpdate } from "../shared/flow.js";
 import type { SessionConfig, ColumnConfig } from "../shared/types.js";
 
 const RESERVED_NAMES = new Set(["input", "self"]);
@@ -38,50 +40,6 @@ function validateConfig(config: SessionConfig): string | null {
     }
   }
   return null;
-}
-
-interface ConfigDiff {
-  removed: string[];
-  added: ColumnConfig[];
-  modified: { name: string; config: ColumnConfig }[];
-  colorOnly: string[];
-}
-
-function diffConfigs(oldConfig: SessionConfig, newConfig: SessionConfig): ConfigDiff {
-  const oldByName = new Map(oldConfig.map((c) => [c.name, c]));
-  const newByName = new Map(newConfig.map((c) => [c.name, c]));
-
-  const removed: string[] = [];
-  const added: ColumnConfig[] = [];
-  const modified: { name: string; config: ColumnConfig }[] = [];
-  const colorOnly: string[] = [];
-
-  // Find removed columns
-  for (const name of oldByName.keys()) {
-    if (!newByName.has(name)) removed.push(name);
-  }
-
-  // Find added and modified columns
-  for (const [name, newCol] of newByName) {
-    const oldCol = oldByName.get(name);
-    if (!oldCol) {
-      added.push(newCol);
-    } else {
-      const promptChanged = oldCol.systemPrompt !== newCol.systemPrompt;
-      const reminderChanged = oldCol.reminder !== newCol.reminder;
-      const contextChanged =
-        JSON.stringify(oldCol.context) !== JSON.stringify(newCol.context);
-      const colorChanged = oldCol.color !== newCol.color;
-
-      if (promptChanged || reminderChanged || contextChanged) {
-        modified.push({ name, config: newCol });
-      } else if (colorChanged) {
-        colorOnly.push(name);
-      }
-    }
-  }
-
-  return { removed, added, modified, colorOnly };
 }
 
 function getStepsSnapshot(session: ReturnType<typeof createSessionFromConfig>) {
@@ -218,50 +176,7 @@ const app = new Elysia()
         };
 
         try {
-          // Apply removals: collect all columns to remove, then remove leaves-first
-          const toRemove = new Set<string>();
-          for (const name of diff.removed) {
-            toRemove.add(name);
-            for (const dep of entry.session.f.dependents(name)) {
-              toRemove.add(dep);
-            }
-          }
-          // Remove in reverse topo order (leaves first) by collecting dependents, then the roots
-          const removeOrder: string[] = [];
-          const removeVisited = new Set<string>();
-          for (const name of diff.removed) {
-            const deps = entry.session.f.dependents(name);
-            for (const dep of [...deps].reverse()) {
-              if (toRemove.has(dep) && !removeVisited.has(dep)) {
-                removeVisited.add(dep);
-                removeOrder.push(dep);
-              }
-            }
-            if (!removeVisited.has(name)) {
-              removeVisited.add(name);
-              removeOrder.push(name);
-            }
-          }
-          for (const name of removeOrder) {
-            entry.session.f.removeColumn(name);
-            entry.session.columnOrder = entry.session.columnOrder.filter((n) => n !== name);
-            entry.session.columnMap.delete(name);
-          }
-
-          // Apply modifications
-          for (const { name, config: cfg } of diff.modified) {
-            const newCol = createColumnFromConfig(cfg, entry.session.columnMap, entry.session.storage);
-            entry.session.f.replaceColumn(name, newCol);
-            entry.session.columnMap.set(name, newCol);
-          }
-
-          // Apply additions
-          for (const cfg of diff.added) {
-            const newCol = createColumnFromConfig(cfg, entry.session.columnMap, entry.session.storage);
-            entry.session.f.addColumn(newCol);
-            entry.session.columnMap.set(cfg.name, newCol);
-            entry.session.columnOrder.push(cfg.name);
-          }
+          applyConfigUpdate(entry.session, diff, config, createColumnFromConfig);
 
           // Update config and column order to match new config ordering
           entry.config = config;
