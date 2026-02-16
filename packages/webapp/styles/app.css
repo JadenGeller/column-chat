@@ -632,17 +632,17 @@ body,
 
 /* Spinner */
 .column-card-spinner {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--text);
+  letter-spacing: 0.02em;
 }
 
 @keyframes pulse {
   0%,
   100% {
-    opacity: 0.4;
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
