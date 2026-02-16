@@ -1,3 +1,41 @@
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../../node_modules/geist/dist/fonts/geist-sans/Geist-Italic[wght].woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Italic[wght].woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Pixel Square";
+  src: url("../../../node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Square.woff2") format("woff2");
+  font-display: swap;
+}
+
 *,
 *::before,
 *::after {
@@ -35,9 +73,9 @@
   --shadow-sm: 3px 3px 0 var(--fg);
   --column-color: var(--accent);
 
-  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --font-body: "Lora", "Georgia", serif;
-  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+  --font-display: "Geist Pixel Square", "Geist Sans", sans-serif;
+  --font-body: "Geist Pixel Square", "Geist Sans", sans-serif;
+  --font-mono: "Geist Mono", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -67,7 +105,7 @@ body,
   background: var(--cream);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.6;
 }
 
@@ -371,7 +409,7 @@ body,
   align-items: center;
   justify-content: flex-start;
   gap: 0;
-  width: 36px;
+  width: 40px;
   flex-shrink: 0;
   background: var(--column-color, var(--red));
   border: none;
@@ -398,7 +436,7 @@ body,
 /* Column name — vertical text */
 .column-card-bar-label {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -490,7 +528,7 @@ body,
 
 .column-card-value {
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1.6;
   color: var(--black);
   white-space: pre-wrap;

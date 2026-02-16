@@ -14,7 +14,8 @@
     "@ai-sdk/anthropic": "^1.0",
     "react": "^19",
     "react-dom": "^19",
-    "@assistant-ui/react": "^0.10"
+    "@assistant-ui/react": "^0.10",
+    "geist": "^1.7.0"
   },
   "devDependencies": {
     "vite": "^6",
