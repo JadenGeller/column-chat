@@ -20,8 +20,10 @@ export function App({ chatId }: AppProps) {
   return (
     <div className="app">
       <span className="vertical-label">{state.editing ? "Configure" : "Chat"}</span>
-      <span className="registration-mark top-center">+</span>
-      <span className="registration-mark bottom-center">+</span>
+      {!state.editing && <>
+        <span className="registration-mark top-center">+</span>
+        <span className="registration-mark bottom-center">+</span>
+      </>}
       {state.editing ? (
         <ConfigEditor state={state} scrollLeftRef={scrollLeftRef} />
       ) : (

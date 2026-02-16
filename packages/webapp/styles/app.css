@@ -802,18 +802,48 @@ body,
       var(--fg) 0px,
       var(--fg) 1px,
       transparent 1px,
-      transparent 12px
+      transparent 10px
     ),
     repeating-linear-gradient(
       -45deg,
       var(--fg) 0px,
       var(--fg) 1px,
       transparent 1px,
-      transparent 12px
+      transparent 10px
     );
-  opacity: 0.04;
+  opacity: 0.08;
   pointer-events: none;
   z-index: 0;
+}
+
+/* Draft mode banner */
+.config-editor-banner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 8px var(--content-inset);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0px,
+    transparent 4px,
+    var(--fg) 4px,
+    var(--fg) 5px
+  );
+  background-size: 100% 100%;
+}
+
+.config-editor-banner-text {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--bg);
 }
 
 .config-editor-row {
@@ -846,13 +876,15 @@ body,
   background: var(--black);
 }
 
-/* Add column button — narrow dashed strip after the last card */
+/* Add column button — dashed card after the last card */
 .config-add-btn {
   flex: 0 0 auto;
   width: 48px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   border: 2px dashed var(--border-subtle);
   background: none;
   cursor: pointer;
@@ -860,28 +892,34 @@ body,
   font-size: 22px;
   font-weight: 700;
   color: var(--text-dim);
-  transition: color 0.1s, border-color 0.1s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .config-add-btn:hover {
   border-color: var(--border-subtle-hover);
   color: var(--black);
+  background: var(--hover-tint);
 }
 
 /* When the add button is the only element (0 columns) */
 .config-add-btn-empty {
   flex: 0 0 400px;
   width: 400px;
-  align-self: flex-start;
-  min-height: 200px;
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 400;
-  font-style: italic;
 }
 
 .config-add-btn-label {
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.config-add-btn-plus {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* Footer — fixed to viewport, mirrors composer-container */

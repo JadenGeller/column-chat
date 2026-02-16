@@ -212,6 +212,9 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
 
   return (
     <div className="config-editor">
+      <div className="config-editor-banner">
+        <span className="config-editor-banner-text">{isDirty ? "Draft" : "Unmodified"}</span>
+      </div>
       <div className="config-editor-row" ref={rowRef}>
         {draftConfig.map((col, i) => {
           const isNew = col.id === newColumnIdRef.current;
@@ -237,10 +240,9 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
           onClick={addColumn}
           aria-label="Add column"
         >
-          {draftConfig.length === 0 ? (
-            <span className="config-add-btn-label">+ Add a column</span>
-          ) : (
-            "+"
+          <span className="config-add-btn-plus">+</span>
+          {draftConfig.length === 0 && (
+            <span className="config-add-btn-label">Add a column</span>
           )}
         </button>
       </div>
