@@ -1,8 +1,47 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { createSession, derivedColumns, columnPrompts } from "./flow.js";
+import { createSessionFromConfig } from "./flow.js";
+import { DEFAULT_CONFIG } from "../shared/defaults.js";
+import type { SessionConfig } from "../shared/types.js";
 
-let session = createSession();
+const RESERVED_NAMES = new Set(["user", "self"]);
+
+function validateConfig(config: SessionConfig): string | null {
+  if (!Array.isArray(config) || config.length === 0) {
+    return "At least one column is required";
+  }
+
+  const seen = new Set<string>();
+  for (let i = 0; i < config.length; i++) {
+    const col = config[i];
+
+    if (!col.name || typeof col.name !== "string") {
+      return `Column at index ${i} has an invalid name`;
+    }
+    if (RESERVED_NAMES.has(col.name)) {
+      return `"${col.name}" is a reserved name`;
+    }
+    if (seen.has(col.name)) {
+      return `Duplicate column name: "${col.name}"`;
+    }
+    seen.add(col.name);
+
+    if (!col.systemPrompt || typeof col.systemPrompt !== "string") {
+      return `Column "${col.name}" requires a system prompt`;
+    }
+
+    for (const ref of col.context) {
+      if (ref.column === "user" || ref.column === "self") continue;
+      if (!seen.has(ref.column)) {
+        return `Column "${col.name}" references "${ref.column}" which doesn't appear before it`;
+      }
+    }
+  }
+  return null;
+}
+
+let currentConfig: SessionConfig = DEFAULT_CONFIG;
+let session = createSessionFromConfig(currentConfig);
 
 const app = new Elysia()
   .use(cors())
@@ -46,9 +85,25 @@ const app = new Elysia()
       },
     });
   })
-  .post("/api/clear", () => {
-    session = createSession();
-    return { ok: true };
+  .post("/api/clear", ({ body }) => {
+    const { config } = (body ?? {}) as { config?: SessionConfig };
+    if (config) {
+      const error = validateConfig(config);
+      if (error) return { ok: false, error };
+      currentConfig = config;
+    }
+    session = createSessionFromConfig(currentConfig);
+    return { ok: true, config: currentConfig };
+  })
+  .post("/api/config", ({ body }) => {
+    const { config } = body as { config: SessionConfig };
+
+    const error = validateConfig(config);
+    if (error) return { ok: false, error };
+
+    currentConfig = config;
+    session = createSessionFromConfig(currentConfig);
+    return { ok: true, config: currentConfig };
   })
   .get("/api/messages", () => {
     const steps: Array<{ user: string; columns: Record<string, string> }> = [];
@@ -58,7 +113,7 @@ const app = new Elysia()
       if (userValue === undefined) break;
 
       const columns: Record<string, string> = {};
-      for (const name of derivedColumns) {
+      for (const name of session.columnOrder) {
         const value = session.f.get(name, step);
         if (value !== undefined) {
           columns[name] = value;
@@ -68,7 +123,11 @@ const app = new Elysia()
       steps.push({ user: userValue, columns });
     }
 
-    return { steps, columnOrder: derivedColumns, columnPrompts };
+    return {
+      steps,
+      columnOrder: session.columnOrder,
+      config: currentConfig,
+    };
   })
   .listen(3000);
 

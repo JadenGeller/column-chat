@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import type { SessionConfig } from "../../shared/types.js";
+import { DEFAULT_CONFIG } from "../../shared/defaults.js";
 
 export interface Step {
   user: string;
@@ -10,26 +12,58 @@ export interface Step {
 export interface ColumnarState {
   steps: Step[];
   columnOrder: string[];
+  columnColors: Record<string, string>;
   columnPrompts: Record<string, string>;
   isRunning: boolean;
   sendMessage: (text: string) => void;
   clearChat: () => void;
+  appliedConfig: SessionConfig;
+  draftConfig: SessionConfig;
+  isDirty: boolean;
+  updateDraft: (config: SessionConfig) => void;
+  applyConfig: () => Promise<void>;
+  resetDraft: () => void;
+}
+
+function deriveFromConfig(config: SessionConfig) {
+  const columnOrder = config.map((c) => c.name);
+  const columnColors: Record<string, string> = {};
+  const columnPrompts: Record<string, string> = {};
+  for (const col of config) {
+    columnColors[col.name] = col.color;
+    columnPrompts[col.name] = col.systemPrompt;
+  }
+  return { columnOrder, columnColors, columnPrompts };
 }
 
 export function useColumnar(): ColumnarState {
   const [steps, setSteps] = useState<Step[]>([]);
-  const [columnOrder, setColumnOrder] = useState<string[]>([]);
-  const [columnPrompts, setColumnPrompts] = useState<Record<string, string>>({});
+  const [appliedConfig, setAppliedConfig] = useState<SessionConfig>(DEFAULT_CONFIG);
+  const [draftConfig, setDraftConfig] = useState<SessionConfig>(DEFAULT_CONFIG);
   const [isRunning, setIsRunning] = useState(false);
+
+  const { columnOrder, columnColors, columnPrompts } = useMemo(
+    () => deriveFromConfig(appliedConfig),
+    [appliedConfig]
+  );
+
+  const isDirty = useMemo(
+    () => JSON.stringify(appliedConfig) !== JSON.stringify(draftConfig),
+    [appliedConfig, draftConfig]
+  );
 
   // Load existing state on mount
   useEffect(() => {
     fetch("/api/messages")
       .then((res) => res.json())
-      .then((data: { steps: Array<{ user: string; columns: Record<string, string> }>; columnOrder: string[]; columnPrompts: Record<string, string> }) => {
+      .then((data: {
+        steps: Array<{ user: string; columns: Record<string, string> }>;
+        columnOrder: string[];
+        config: SessionConfig;
+      }) => {
         setSteps(data.steps.map((s) => ({ ...s, isRunning: false })));
-        setColumnOrder(data.columnOrder);
-        setColumnPrompts(data.columnPrompts);
+        setAppliedConfig(data.config);
+        setDraftConfig(data.config);
       })
       .catch(console.error);
   }, []);
@@ -104,12 +138,56 @@ export function useColumnar(): ColumnarState {
   }, [steps.length]);
 
   const clearChat = useCallback(() => {
-    fetch("/api/clear", { method: "POST" })
+    fetch("/api/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    })
       .then(() => {
         setSteps([]);
       })
       .catch(console.error);
   }, []);
 
-  return { steps, columnOrder, columnPrompts, isRunning, sendMessage, clearChat };
+  const updateDraft = useCallback((config: SessionConfig) => {
+    setDraftConfig(config);
+  }, []);
+
+  const applyConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: draftConfig }),
+      });
+      const data = await res.json() as { ok: boolean; config?: SessionConfig; error?: string };
+      if (data.ok && data.config) {
+        setAppliedConfig(data.config);
+        setDraftConfig(data.config);
+        setSteps([]);
+      }
+    } catch (err) {
+      console.error("Failed to apply config:", err);
+    }
+  }, [draftConfig]);
+
+  const resetDraft = useCallback(() => {
+    setDraftConfig(appliedConfig);
+  }, [appliedConfig]);
+
+  return {
+    steps,
+    columnOrder,
+    columnColors,
+    columnPrompts,
+    isRunning,
+    sendMessage,
+    clearChat,
+    appliedConfig,
+    draftConfig,
+    isDirty,
+    updateDraft,
+    applyConfig,
+    resetDraft,
+  };
 }

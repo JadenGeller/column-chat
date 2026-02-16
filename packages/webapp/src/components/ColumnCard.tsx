@@ -1,26 +1,19 @@
 import { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { displayName } from "../../shared/defaults.js";
 
 interface ColumnCardProps {
   name: string;
   value: string | undefined;
+  color?: string;
   prompt?: string;
 }
 
-const LABELS: Record<string, string> = {
-  sentiment: "Sentiment",
-  claims: "Claims",
-  questions: "Questions",
-  assumptions: "Assumptions",
-  thread: "Thread",
-  next_steps: "Next Steps",
-};
-
-export function ColumnCard({ name, value, prompt }: ColumnCardProps) {
+export function ColumnCard({ name, value, color, prompt }: ColumnCardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const label = LABELS[name] ?? name;
+  const label = displayName(name);
   const isLoading = value === undefined;
 
   const showTooltip = useCallback(() => {
@@ -35,8 +28,10 @@ export function ColumnCard({ name, value, prompt }: ColumnCardProps) {
 
   const hideTooltip = useCallback(() => setTooltipStyle(null), []);
 
+  const style = color ? { "--column-color": color } as React.CSSProperties : undefined;
+
   return (
-    <div className={`column-card ${isLoading ? "loading" : ""}`}>
+    <div className={`column-card ${isLoading ? "loading" : ""}`} style={style}>
       <div className="column-card-header">
         <button
           className="column-card-title"

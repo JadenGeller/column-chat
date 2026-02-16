@@ -5,13 +5,17 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
 } from "@assistant-ui/react";
-import { useColumnar } from "../hooks/useColumnar.js";
+import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
 
-export function Chat() {
-  const { steps, columnOrder, columnPrompts, isRunning, sendMessage, clearChat } = useColumnar();
-  const runtime = useColumnarRuntime(steps, columnOrder, columnPrompts, isRunning, sendMessage);
+interface ChatProps {
+  state: ColumnarState;
+}
+
+export function Chat({ state }: ChatProps) {
+  const { steps, columnOrder, columnColors, columnPrompts, isRunning, sendMessage, clearChat } = state;
+  const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, isRunning, sendMessage);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -80,9 +84,6 @@ const AssistantMessage: FC = () => {
 };
 
 function AssistantMessageContent() {
-  // We need to extract the columns data from the message content.
-  // The content is JSON-encoded in our runtime conversion.
-  // We'll use MessagePrimitive.Content with a custom Text renderer.
   return (
     <MessagePrimitive.Content
       components={{
@@ -98,6 +99,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       stepIndex: number;
       columns: Record<string, string>;
       columnOrder: string[];
+      columnColors: Record<string, string>;
       columnPrompts: Record<string, string>;
       isRunning: boolean;
       error?: string;
@@ -114,6 +116,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
             key={name}
             name={name}
             value={data.columns[name]}
+            color={data.columnColors[name]}
             prompt={data.columnPrompts[name]}
           />
         ))}
