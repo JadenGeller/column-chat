@@ -8,7 +8,7 @@ This document specifies exactly how the library assembles messages arrays for LL
 2. Each step in the conversation produces one user message and (if self-referencing) one assistant message.
 3. **Inputs** (everything in `context` except `self`) become **user message content**.
 4. **Self-reference** becomes **assistant message content**.
-5. If a column reads multiple inputs at a step, they are wrapped in XML tags named after the column (or its `.as()` override). If there's only one input, no wrapping.
+5. All user-role inputs are always wrapped in XML tags named after the column (or its `.as()` override).
 6. The system message is not the library's concern — it's provided by the compute function (e.g. `prompt("...")`). The library produces only the messages array.
 7. At step 0, there are no prior steps, so a self-referencing column sees an empty history — the messages array has only one user message.
 
@@ -36,19 +36,19 @@ const assistant = column('assistant', {
 
 ### Messages Array for `assistant` at Step 2
 
-One input (`user`), so no XML wrapping. Self-reference with `self` (all history), so all prior assistant outputs appear as assistant messages.
+One input (`user`), always XML-wrapped. Self-reference with `self` (all history), so all prior assistant outputs appear as assistant messages.
 
 ```json
 [
-  { "role": "user", "content": "Hello" },
+  { "role": "user", "content": "<user>\nHello\n</user>" },
   { "role": "assistant", "content": "Hi! How can I help?" },
-  { "role": "user", "content": "What's TypeScript?" },
+  { "role": "user", "content": "<user>\nWhat's TypeScript?\n</user>" },
   { "role": "assistant", "content": "TypeScript is a..." },
-  { "role": "user", "content": "Thanks" }
+  { "role": "user", "content": "<user>\nThanks\n</user>" }
 ]
 ```
 
-The LLM produces the assistant message for step 2. This is exactly what every chat API already does.
+The LLM produces the assistant message for step 2. The XML wrapping separates user data from instructions, preventing the model from following directives embedded in user text.
 
 ---
 
@@ -77,7 +77,7 @@ const topics = column('topics', {
 
 ```json
 [
-  { "role": "user", "content": "And memory safety" }
+  { "role": "user", "content": "<user>\nAnd memory safety\n</user>" }
 ]
 ```
 
@@ -85,7 +85,7 @@ At step 1, the messages were:
 
 ```json
 [
-  { "role": "user", "content": "Let's discuss Rust" }
+  { "role": "user", "content": "<user>\nLet's discuss Rust\n</user>" }
 ]
 ```
 
@@ -114,11 +114,11 @@ const summary = column('summary', {
 
 ### Messages Array for `summary` at Step 0
 
-First step. No prior self output exists. One input, no XML wrapping.
+First step. No prior self output exists.
 
 ```json
 [
-  { "role": "user", "content": "I'm considering Rust" }
+  { "role": "user", "content": "<user>\nI'm considering Rust\n</user>" }
 ]
 ```
 
@@ -130,9 +130,9 @@ Note: no assistant message. At step 0, self-history is empty regardless of windo
 
 ```json
 [
-  { "role": "user", "content": "I'm considering Rust" },
+  { "role": "user", "content": "<user>\nI'm considering Rust\n</user>" },
   { "role": "assistant", "content": "User is considering Rust." },
-  { "role": "user", "content": "For the backend rewrite" }
+  { "role": "user", "content": "<user>\nFor the backend rewrite\n</user>" }
 ]
 ```
 
@@ -142,10 +142,10 @@ Note: no assistant message. At step 0, self-history is empty regardless of windo
 
 ```json
 [
-  { "role": "user", "content": "I'm considering Rust" },
-  { "role": "user", "content": "For the backend rewrite" },
+  { "role": "user", "content": "<user>\nI'm considering Rust\n</user>" },
+  { "role": "user", "content": "<user>\nFor the backend rewrite\n</user>" },
   { "role": "assistant", "content": "User wants to rewrite the backend in Rust." },
-  { "role": "user", "content": "Because Python is slow" }
+  { "role": "user", "content": "<user>\nBecause Python is slow\n</user>" }
 ]
 ```
 
@@ -161,9 +161,9 @@ LLM APIs require strict `(user, assistant)*` alternation. When a reducer sees `s
 
 ```json
 [
-  { "role": "user", "content": "I'm considering Rust\n\nFor the backend rewrite" },
+  { "role": "user", "content": "<user>\nI'm considering Rust\n</user>\n\n<user>\nFor the backend rewrite\n</user>" },
   { "role": "assistant", "content": "User wants to rewrite the backend in Rust." },
-  { "role": "user", "content": "Because Python is slow" }
+  { "role": "user", "content": "<user>\nBecause Python is slow\n</user>" }
 ]
 ```
 
@@ -300,11 +300,11 @@ Single input, `.latest`, no self.
 
 ```json
 [
-  { "role": "user", "content": "Python's GIL limits..." }
+  { "role": "user", "content": "<steelman>\nPython's GIL limits...\n</steelman>" }
 ]
 ```
 
-The critic sees the steelman's output, not the user's original message. The indirection is invisible in the messages — it's just content.
+The critic sees the steelman's output, not the user's original message. The XML tag names the source column.
 
 ---
 
@@ -335,9 +335,9 @@ Step 3: user has "Delta", no self.
 
 ```json
 [
-  { "role": "user", "content": "Gamma" },
+  { "role": "user", "content": "<user>\nGamma\n</user>" },
   { "role": "assistant", "content": "Beta, then gamma." },
-  { "role": "user", "content": "Delta" }
+  { "role": "user", "content": "<user>\nDelta\n</user>" }
 ]
 ```
 
@@ -381,10 +381,7 @@ function assembleInputs(inputs, step, store):
     if step in resolveWindow(input, step):
       values.push({ name: input.name, content: store.get(input.column, step) })
 
-  if values.length == 1:
-    return values[0].content
-  else:
-    return values.map(v => `<${v.name}>\n${v.content}\n</${v.name}>`).join("\n\n")
+  return values.map(v => `<${v.name}>\n${v.content}\n</${v.name}>`).join("\n\n")
 
 
 function resolveWindow(view, currentStep):
@@ -407,9 +404,7 @@ function resolveWindow(view, currentStep):
 
 **At step 0 with self, the self range is empty.** There are no prior steps. The messages array is just the user message(s) for step 0.
 
-**Multiple inputs at different windows.** If `context: [user, summary.latest]`, at step 5, `user` contributes steps 0–5 and `summary` contributes only step 5. At steps 0–4, only `user` has content, so no XML wrapping is needed for those steps. At step 5, both have content, so XML wrapping kicks in. **Correction: for consistency, if any step in the range has multiple inputs, use XML wrapping for ALL steps.** This avoids confusing format changes mid-conversation.
-
-**Simpler rule: if `context` has more than one non-self entry, always use XML wrapping.** This is predictable and lets the prompt author write their prompt knowing the format won't change.
+**Always XML-wrap user-role inputs.** Every user-role input is wrapped in `<name>...\n</name>` tags, regardless of how many inputs the column has. This separates data from instructions and prevents models from following directives embedded in user text.
 
 ---
 

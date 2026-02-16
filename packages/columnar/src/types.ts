@@ -52,19 +52,22 @@ export interface SourceColumn extends ColumnView {
   push(value: string): void;
 }
 
+// Transform function: modify resolved inputs before assembly
+export type TransformFunction = (inputs: ContextInput[], step: number) => ContextInput[];
+
 export interface DerivedColumn extends ColumnView {
   readonly kind: "derived";
   readonly storage: ColumnStorage;
   readonly context: ColumnView[];
   readonly compute: ComputeFunction;
+  readonly transform?: TransformFunction;
 }
 
 export type Column = SourceColumn | DerivedColumn;
 
-// Internal resolved view used by context.ts
-export interface ResolvedView {
-  column: Column;
-  windowMode: WindowMode;
-  name: string;
-  isSelf: boolean;
-}
+// Plain-data types for the public assembleMessages API
+export type ContextEntry = { step: number; value: string };
+export type ContextInput = {
+  role: "user" | "assistant";
+  entries: ContextEntry[];
+};

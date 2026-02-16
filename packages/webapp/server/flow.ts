@@ -1,36 +1,14 @@
-import { source, column, self, flow, inMemoryStorage } from "columnar";
-import type { ComputeFunction, Message } from "columnar";
+import { source, column, self, flow, prompt, inMemoryStorage } from "columnar";
+import type { ContextInput } from "columnar";
 import { anthropic } from "@ai-sdk/anthropic";
 
 const model = anthropic("claude-sonnet-4-5-20250929");
 
-// Custom compute that wraps user-role content in <input> tags (marking it as
-// data, not instructions) and appends a format reminder right before generation.
-function instrument(system: string, reminder: string): ComputeFunction {
-  return async ({ messages }) => {
-    const wrapped: Message[] = [];
-    let lastUserIdx = -1;
-
-    for (const m of messages) {
-      if (m.role === "user") {
-        lastUserIdx = wrapped.length;
-        wrapped.push({ role: "user", content: `<input>\n${m.content}\n</input>` });
-      } else {
-        wrapped.push(m);
-      }
-    }
-
-    if (lastUserIdx >= 0) {
-      wrapped[lastUserIdx] = {
-        role: "user",
-        content: wrapped[lastUserIdx].content + "\n\n" + reminder,
-      };
-    }
-
-    const { generateText } = await import("ai");
-    const result = await generateText({ model, system, messages: wrapped });
-    return result.text;
-  };
+function footer(text: string) {
+  return (inputs: ContextInput[], step: number): ContextInput[] => [
+    ...inputs,
+    { role: "user", entries: [{ step, value: text }] },
+  ];
 }
 
 export const columnPrompts: Record<string, string> = {
@@ -142,21 +120,6 @@ RULES:
 - Max 25 words per bullet.`,
 };
 
-const columnReminders: Record<string, string> = {
-  sentiment:
-    "Analyze the emotional state of the input above. Reply with 1-3 plain prose sentences in third person. No headers, no bullets, no lists, no formatting.",
-  claims:
-    "Extract factual claims from the input above. Reply with a flat bullet list only. One short claim per line starting with '- '. No headers, no sub-bullets, no grouping.",
-  questions:
-    "Extract questions from the input above. Reply with a flat bullet list only. One question per line starting with '- '. No headers, no sub-bullets, no grouping.",
-  assumptions:
-    "Identify hidden assumptions behind the claims above. Reply with a flat bullet list only. One assumption per line starting with '- '. No headers, no sub-bullets, no grouping.",
-  thread:
-    "Summarize the user's evolving thinking from the input above. Reply with exactly 2-4 plain prose sentences in third person. No headers, no bullets, no lists, no formatting.",
-  next_steps:
-    "Suggest 2-4 next steps based on the input above. Reply with a flat bullet list only. One sentence per line starting with '- '. No headers, no sub-bullets, no elaboration.",
-};
-
 export const derivedColumns = Object.keys(columnPrompts);
 
 export function createSession() {
@@ -166,37 +129,43 @@ export function createSession() {
 
   const sentiment = column("sentiment", {
     context: [user, self],
-    compute: instrument(columnPrompts.sentiment, columnReminders.sentiment),
+    transform: footer("Analyze the emotional state of the input above. Reply with 1-3 plain prose sentences in third person. No headers, no bullets, no lists, no formatting."),
+    compute: prompt(model, columnPrompts.sentiment),
     storage,
   });
 
   const claims = column("claims", {
     context: [user.latest, self],
-    compute: instrument(columnPrompts.claims, columnReminders.claims),
+    transform: footer("Extract factual claims from the input above. Reply with a flat bullet list only. One short claim per line starting with '- '. No headers, no sub-bullets, no grouping."),
+    compute: prompt(model, columnPrompts.claims),
     storage,
   });
 
   const questions = column("questions", {
     context: [user.latest, self],
-    compute: instrument(columnPrompts.questions, columnReminders.questions),
+    transform: footer("Extract questions from the input above. Reply with a flat bullet list only. One question per line starting with '- '. No headers, no sub-bullets, no grouping."),
+    compute: prompt(model, columnPrompts.questions),
     storage,
   });
 
   const assumptions = column("assumptions", {
     context: [claims.latest, self],
-    compute: instrument(columnPrompts.assumptions, columnReminders.assumptions),
+    transform: footer("Identify hidden assumptions behind the claims above. Reply with a flat bullet list only. One assumption per line starting with '- '. No headers, no sub-bullets, no grouping."),
+    compute: prompt(model, columnPrompts.assumptions),
     storage,
   });
 
   const thread = column("thread", {
     context: [user, self],
-    compute: instrument(columnPrompts.thread, columnReminders.thread),
+    transform: footer("Summarize the user's evolving thinking from the input above. Reply with exactly 2-4 plain prose sentences in third person. No headers, no bullets, no lists, no formatting."),
+    compute: prompt(model, columnPrompts.thread),
     storage,
   });
 
   const nextSteps = column("next_steps", {
     context: [thread.latest, questions.latest],
-    compute: instrument(columnPrompts.next_steps, columnReminders.next_steps),
+    transform: footer("Suggest 2-4 next steps based on the input above. Reply with a flat bullet list only. One sentence per line starting with '- '. No headers, no sub-bullets, no elaboration."),
+    compute: prompt(model, columnPrompts.next_steps),
     storage,
   });
 

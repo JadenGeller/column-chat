@@ -6,6 +6,7 @@ import type {
   SourceColumn,
   DerivedColumn,
   ComputeFunction,
+  TransformFunction,
 } from "./types.js";
 import { SELF_MARKER } from "./types.js";
 
@@ -98,7 +99,7 @@ export function source(
 
 export function column(
   name: string,
-  options: { context: ColumnView[]; compute: ComputeFunction; storage?: StorageProvider }
+  options: { context: ColumnView[]; compute: ComputeFunction; transform?: TransformFunction; storage?: StorageProvider }
 ): DerivedColumn {
   const storage = (options.storage ?? inMemoryStorage())(name);
   const col = {
@@ -107,6 +108,7 @@ export function column(
     storage,
     context: options.context,
     compute: options.compute,
+    transform: options.transform,
   } as DerivedColumn;
 
   // Fix self-reference

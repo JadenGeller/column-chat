@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { source, column, self } from "../column.js";
-import { assembleMessages, resolveViews } from "../context.js";
+import { assembleMessages, resolveContextInputs } from "../context.js";
 import type { Column, Message } from "../types.js";
 
 // Helper: populate a column's storage with values
@@ -10,13 +10,13 @@ function populate(col: Column, values: string[]): void {
   }
 }
 
-// Helper: resolve views and assemble messages
+// Helper: resolve context inputs and assemble messages
 function assemble(
   col: ReturnType<typeof column>,
   currentStep: number,
 ): Message[] {
-  const resolved = resolveViews(col.context, col);
-  return assembleMessages(resolved, currentStep);
+  const inputs = resolveContextInputs(col.context, col, currentStep);
+  return assembleMessages(inputs);
 }
 
 describe("context assembly", () => {
@@ -33,11 +33,11 @@ describe("context assembly", () => {
 
     const messages = assemble(assistant, 2);
     expect(messages).toEqual([
-      { role: "user", content: "Hello" },
+      { role: "user", content: "<user>\nHello\n</user>" },
       { role: "assistant", content: "Hi! How can I help?" },
-      { role: "user", content: "What's TypeScript?" },
+      { role: "user", content: "<user>\nWhat's TypeScript?\n</user>" },
       { role: "assistant", content: "TypeScript is a..." },
-      { role: "user", content: "Thanks" },
+      { role: "user", content: "<user>\nThanks\n</user>" },
     ]);
   });
 
@@ -55,13 +55,13 @@ describe("context assembly", () => {
     // At step 2
     const messages = assemble(topics, 2);
     expect(messages).toEqual([
-      { role: "user", content: "And memory safety" },
+      { role: "user", content: "<user>\nAnd memory safety\n</user>" },
     ]);
 
     // At step 1
     const messages1 = assemble(topics, 1);
     expect(messages1).toEqual([
-      { role: "user", content: "Let's discuss Rust" },
+      { role: "user", content: "<user>\nLet's discuss Rust\n</user>" },
     ]);
   });
 
@@ -78,7 +78,7 @@ describe("context assembly", () => {
 
     const messages0 = assemble(summary, 0);
     expect(messages0).toEqual([
-      { role: "user", content: "I'm considering Rust" },
+      { role: "user", content: "<user>\nI'm considering Rust\n</user>" },
     ]);
   });
 
@@ -94,9 +94,9 @@ describe("context assembly", () => {
 
     const messages1 = assemble(summary, 1);
     expect(messages1).toEqual([
-      { role: "user", content: "I'm considering Rust" },
+      { role: "user", content: "<user>\nI'm considering Rust\n</user>" },
       { role: "assistant", content: "User is considering Rust." },
-      { role: "user", content: "For the backend rewrite" },
+      { role: "user", content: "<user>\nFor the backend rewrite\n</user>" },
     ]);
   });
 
@@ -112,9 +112,9 @@ describe("context assembly", () => {
 
     const messages2 = assemble(summary, 2);
     expect(messages2).toEqual([
-      { role: "user", content: "I'm considering Rust\n\nFor the backend rewrite" },
+      { role: "user", content: "<user>\nI'm considering Rust\n</user>\n\n<user>\nFor the backend rewrite\n</user>" },
       { role: "assistant", content: "User wants to rewrite the backend in Rust." },
-      { role: "user", content: "Because Python is slow" },
+      { role: "user", content: "<user>\nBecause Python is slow\n</user>" },
     ]);
   });
 
@@ -189,7 +189,7 @@ describe("context assembly", () => {
 
     const messages = assemble(critic, 1);
     expect(messages).toEqual([
-      { role: "user", content: "Python's GIL limits..." },
+      { role: "user", content: "<steelman>\nPython's GIL limits...\n</steelman>" },
     ]);
   });
 
@@ -206,9 +206,9 @@ describe("context assembly", () => {
 
     const messages = assemble(recent, 3);
     expect(messages).toEqual([
-      { role: "user", content: "Gamma" },
+      { role: "user", content: "<user>\nGamma\n</user>" },
       { role: "assistant", content: "Beta, then gamma." },
-      { role: "user", content: "Delta" },
+      { role: "user", content: "<user>\nDelta\n</user>" },
     ]);
   });
 

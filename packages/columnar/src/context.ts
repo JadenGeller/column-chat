@@ -2,23 +2,10 @@ import type {
   Message,
   ColumnView,
   Column,
-  ResolvedView,
   WindowMode,
+  ContextInput,
 } from "./types.js";
 import { SELF_MARKER } from "./types.js";
-
-// Resolve a ColumnView into a ResolvedView, replacing SELF_MARKER with the actual column
-export function resolveViews(
-  context: ColumnView[],
-  thisColumn: Column
-): ResolvedView[] {
-  return context.map((view) => ({
-    column: view._column === SELF_MARKER ? thisColumn : (view._column as Column),
-    windowMode: view._windowMode,
-    name: view._name,
-    isSelf: view._column === SELF_MARKER,
-  }));
-}
 
 // Compute the step range for a view
 function stepRange(
@@ -50,65 +37,71 @@ function stepRange(
   return steps;
 }
 
-export function assembleMessages(
-  resolvedViews: ResolvedView[],
+// Internal: column views → plain ContextInput[] (resolves self, windowing, storage, XML wrapping)
+export function resolveContextInputs(
+  context: ColumnView[],
+  thisColumn: Column,
   currentStep: number,
-): Message[] {
-  const selfView = resolvedViews.find((v) => v.isSelf);
-  const inputViews = resolvedViews.filter((v) => !v.isSelf);
-  const useXml = inputViews.length > 1;
+): ContextInput[] {
+  return context.map((view) => {
+    const column = view._column === SELF_MARKER ? thisColumn : (view._column as Column);
+    const isSelf = view._column === SELF_MARKER;
+    const steps = stepRange(view._windowMode, currentStep, isSelf);
+    const entries: { step: number; value: string }[] = [];
+    for (const step of [...steps].sort((a, b) => a - b)) {
+      const raw = column.storage.get(step);
+      if (raw !== undefined) {
+        const value = isSelf ? raw : `<${view._name}>\n${raw}\n</${view._name}>`;
+        entries.push({ step, value });
+      }
+    }
+    return {
+      role: isSelf ? "assistant" as const : "user" as const,
+      entries,
+    };
+  });
+}
 
-  // Compute step ranges
-  const selfSteps = selfView
-    ? stepRange(selfView.windowMode, currentStep, true)
-    : new Set<number>();
-
-  const inputStepRanges = inputViews.map((v) =>
-    stepRange(v.windowMode, currentStep, false)
-  );
-
-  // Union all steps
+// Public: transpose step-indexed inputs into alternating Message[]
+export function assembleMessages(inputs: ContextInput[]): Message[] {
+  // Collect all steps across all inputs
   const allSteps = new Set<number>();
-  for (const s of selfSteps) allSteps.add(s);
-  for (const range of inputStepRanges) {
-    for (const s of range) allSteps.add(s);
+  for (const input of inputs) {
+    for (const entry of input.entries) {
+      allSteps.add(entry.step);
+    }
   }
 
   const sortedSteps = [...allSteps].sort((a, b) => a - b);
+
+  // Build lookup maps per input: step → value
+  const lookups = inputs.map((input) => {
+    const map = new Map<number, string>();
+    for (const entry of input.entries) {
+      map.set(entry.step, entry.value);
+    }
+    return map;
+  });
 
   // Build raw message sequence
   const rawMessages: Message[] = [];
 
   for (const step of sortedSteps) {
-    // Check if any input has content at this step
-    const inputParts: { name: string; content: string }[] = [];
-    for (let i = 0; i < inputViews.length; i++) {
-      if (inputStepRanges[i].has(step)) {
-        const value = inputViews[i].column.storage.get(step);
-        if (value !== undefined) {
-          inputParts.push({
-            name: inputViews[i].name,
-            content: value,
-          });
-        }
-      }
+    // Collect user values at this step
+    const userParts: string[] = [];
+    for (let i = 0; i < inputs.length; i++) {
+      if (inputs[i].role !== "user") continue;
+      const value = lookups[i].get(step);
+      if (value !== undefined) userParts.push(value);
+    }
+    if (userParts.length > 0) {
+      rawMessages.push({ role: "user", content: userParts.join("\n\n") });
     }
 
-    if (inputParts.length > 0) {
-      let content: string;
-      if (useXml) {
-        content = inputParts
-          .map((p) => `<${p.name}>\n${p.content}\n</${p.name}>`)
-          .join("\n\n");
-      } else {
-        content = inputParts.map((p) => p.content).join("\n\n");
-      }
-      rawMessages.push({ role: "user", content });
-    }
-
-    // Self value at this step
-    if (selfSteps.has(step)) {
-      const value = selfView!.column.storage.get(step);
+    // Collect assistant values at this step
+    for (let i = 0; i < inputs.length; i++) {
+      if (inputs[i].role !== "assistant") continue;
+      const value = lookups[i].get(step);
       if (value !== undefined) {
         rawMessages.push({ role: "assistant", content: value });
       }

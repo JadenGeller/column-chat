@@ -22,10 +22,10 @@ describe("flow", () => {
     }
 
     expect(events).toEqual([
-      { column: "assistant", step: 0, value: "echo: Hello" },
+      { column: "assistant", step: 0, value: "echo: <user>\nHello\n</user>" },
     ]);
 
-    expect(f.get("assistant", 0)).toBe("echo: Hello");
+    expect(f.get("assistant", 0)).toBe("echo: <user>\nHello\n</user>");
     expect(f.get("user", 0)).toBe("Hello");
   });
 
@@ -89,8 +89,8 @@ describe("flow", () => {
 
     // steelman computes first, then critic
     expect(events).toEqual([
-      { column: "steelman", step: 0, value: "pro: Rust is good" },
-      { column: "critic", step: 0, value: "con: pro: Rust is good" },
+      { column: "steelman", step: 0, value: "pro: <user>\nRust is good\n</user>" },
+      { column: "critic", step: 0, value: "con: <steelman>\npro: <user>\nRust is good\n</user>\n</steelman>" },
     ]);
   });
 
@@ -133,8 +133,8 @@ describe("flow", () => {
     user.push("step1");
     await f.run();
 
-    expect(f.get("assistant", 0)).toBe("reply: step0");
-    expect(f.get("assistant", 1)).toBe("reply: step1");
+    expect(f.get("assistant", 0)).toBe("reply: <user>\nstep0\n</user>");
+    expect(f.get("assistant", 1)).toBe("reply: <user>\nstep1\n</user>");
 
     // Add a new column after 2 steps have been computed
     const wordcount = column("wordcount", {
@@ -145,9 +145,9 @@ describe("flow", () => {
 
     await f.addColumn(wordcount);
 
-    // It should have backfilled steps 0 and 1
-    expect(f.get("wordcount", 0)).toBe("1");
-    expect(f.get("wordcount", 1)).toBe("1");
+    // XML-wrapped content: "<user>\nstep0\n</user>" splits into 3 tokens
+    expect(f.get("wordcount", 0)).toBe("3");
+    expect(f.get("wordcount", 1)).toBe("3");
   });
 
   test("get returns undefined for unknown column or step", async () => {
@@ -182,20 +182,20 @@ describe("flow", () => {
 
     user.push("alpha");
     await f.run();
-    expect(f.get("summary", 0)).toBe("alpha");
+    expect(f.get("summary", 0)).toBe("<user>\nalpha\n</user>");
 
     user.push("beta");
     await f.run();
     // At step 1: user sees [alpha, beta], self.latest sees step 0
-    // messages: user "alpha", assistant "alpha", user "beta"
-    expect(f.get("summary", 1)).toBe("alpha + beta");
+    // messages: user "<user>\nalpha\n</user>", assistant "<user>\nalpha\n</user>", user "<user>\nbeta\n</user>"
+    expect(f.get("summary", 1)).toBe("<user>\nalpha\n</user> + <user>\nbeta\n</user>");
 
     user.push("gamma");
     await f.run();
     // At step 2: user sees [alpha, beta, gamma], self.latest sees step 1
     // self.latest = step 1 only, so steps 0-1 of user merge (no assistant between them at step 0)
-    // messages: user "alpha\n\nbeta", assistant "alpha + beta", user "gamma"
-    expect(f.get("summary", 2)).toBe("alpha\n\nbeta + gamma");
+    // messages: user "<user>\nalpha\n</user>\n\n<user>\nbeta\n</user>", assistant "...", user "<user>\ngamma\n</user>"
+    expect(f.get("summary", 2)).toBe("<user>\nalpha\n</user>\n\n<user>\nbeta\n</user> + <user>\ngamma\n</user>");
   });
 
   test("multiple source columns", async () => {

@@ -6,7 +6,7 @@ import type {
   FlowEvent,
 } from "./types.js";
 import { isSelfView } from "./column.js";
-import { assembleMessages, resolveViews } from "./context.js";
+import { assembleMessages, resolveContextInputs } from "./context.js";
 
 export interface Flow {
   run(): AsyncIterable<FlowEvent> & PromiseLike<void>;
@@ -127,8 +127,9 @@ export function flow(...leaves: Column[]): Flow {
           for (const col of sortedDerived) {
             if (step < col.storage.length) continue; // already computed
 
-            const resolved = resolveViews(col.context, col);
-            const messages = assembleMessages(resolved, step);
+            let inputs = resolveContextInputs(col.context, col, step);
+            if (col.transform) inputs = col.transform(inputs, step);
+            const messages = assembleMessages(inputs);
             const value = await col.compute({ messages });
 
             col.storage.push(value);
@@ -184,8 +185,9 @@ export function flow(...leaves: Column[]): Flow {
 
     // Backfill all completed steps
     for (let step = 0; step < computedSteps; step++) {
-      const resolved = resolveViews(col.context, col);
-      const messages = assembleMessages(resolved, step);
+      let inputs = resolveContextInputs(col.context, col, step);
+      if (col.transform) inputs = col.transform(inputs, step);
+      const messages = assembleMessages(inputs);
       const value = await col.compute({ messages });
       col.storage.push(value);
     }
