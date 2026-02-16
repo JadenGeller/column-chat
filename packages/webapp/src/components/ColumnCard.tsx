@@ -35,7 +35,7 @@ export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProp
     setTooltipStyle({
       position: "fixed",
       top: rect.bottom + 8,
-      right: Math.max(8, window.innerWidth - rect.right),
+      left: rect.left,
     });
   }, []);
 
@@ -47,49 +47,34 @@ export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProp
   const useMono = value ? isBulletList(value) : false;
 
   return (
-    <div className={`column-card ${isLoading ? "loading" : ""}`} style={style}>
-      <div className="column-card-accent" />
-      <div className="column-card-header">
-        <button
-          className="column-card-title"
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          <span className="column-card-number">{sectionNumber}</span>
-          <span className="column-card-dash">&mdash;</span>
-          <span className="column-card-label">{label}</span>
-          <span className="column-card-toggle">
-            {collapsed ? "+" : "\u2715"}
-          </span>
-        </button>
-        {prompt && (
-          <>
-            <button
-              ref={buttonRef}
-              className="prompt-hint-button"
-              onMouseEnter={showTooltip}
-              onMouseLeave={hideTooltip}
-              onClick={() => tooltipStyle ? hideTooltip() : showTooltip()}
-              aria-label="View system prompt"
-            >
-              ?
-            </button>
-            {tooltipStyle &&
-              createPortal(
-                <div
-                  className="prompt-tooltip"
-                  style={tooltipStyle}
-                  onMouseEnter={showTooltip}
-                  onMouseLeave={hideTooltip}
-                >
-                  {prompt}
-                </div>,
-                document.body
-              )}
-          </>
-        )}
-      </div>
+    <div className={`column-card ${isLoading ? "loading" : ""} ${collapsed ? "collapsed" : ""}`} style={style}>
+      <button
+        className="column-card-bar"
+        onClick={() => setCollapsed(!collapsed)}
+        aria-label={collapsed ? "Expand" : "Collapse"}
+      >
+        <span className="column-card-number">{sectionNumber}</span>
+        <span className="column-card-bar-label">{label}</span>
+      </button>
       {!collapsed && (
-        <>
+        <div className="column-card-content">
+          {prompt && (
+            <div className="column-card-toolbar">
+              <button
+                ref={buttonRef}
+                className="prompt-hint-button"
+                onMouseEnter={showTooltip}
+                onMouseLeave={hideTooltip}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  tooltipStyle ? hideTooltip() : showTooltip();
+                }}
+                aria-label="View system prompt"
+              >
+                ?
+              </button>
+            </div>
+          )}
           <div className="column-card-body">
             {isLoading ? (
               <div className="column-card-spinner">Computing...</div>
@@ -104,7 +89,19 @@ export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProp
               <span>{wordCount} words</span>
             </div>
           )}
-        </>
+          {tooltipStyle &&
+            createPortal(
+              <div
+                className="prompt-tooltip"
+                style={tooltipStyle}
+                onMouseEnter={showTooltip}
+                onMouseLeave={hideTooltip}
+              >
+                {prompt}
+              </div>,
+              document.body
+            )}
+        </div>
       )}
     </div>
   );
