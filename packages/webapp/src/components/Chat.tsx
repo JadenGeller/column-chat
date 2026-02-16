@@ -160,7 +160,7 @@ function PresetPicker({ onSelect, onBuildOwn }: {
         className="preset-build-own"
         onClick={onBuildOwn}
       >
-        or build your own
+        or build your own with opus 4.6
       </button>
     </div>
   );
