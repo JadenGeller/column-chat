@@ -33,7 +33,7 @@ export interface Preset {
 export const PRESETS: Preset[] = [
   {
     name: "Brainstorm",
-    description: "Generate & refine ideas together.",
+    description: "Ideas in every direction, then a path forward.",
     create: () => {
       const colors = [...PRESET_COLORS];
       return [
@@ -41,7 +41,7 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "ideas",
           systemPrompt:
-            "Extract every concrete idea from the conversation. Include ideas mentioned in passing. Don't editorialize — just capture.",
+            "Capture every idea from the conversation — stated directly, implied, or mentioned in passing. Cast a wide net. Don't filter or judge, just collect.",
           reminder: "Bulleted list only. One idea per bullet. No commentary.",
           color: colors[0],
           context: [
@@ -53,7 +53,7 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "themes",
           systemPrompt:
-            "Group the ideas into 2–5 named themes. Give each theme a short title and list which ideas fall under it.",
+            "What patterns are emerging? Group ideas into 2–5 named themes. A good theme name makes you see the ideas differently.",
           reminder: "Theme titles followed by their ideas. Structured, no prose.",
           color: colors[1],
           context: [
@@ -65,8 +65,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "critique",
           systemPrompt:
-            "Play devil's advocate. For each idea with a real weakness, name it in one sentence. Be specific and constructive, not dismissive.",
-          reminder: "2–3 sentences per real weakness. Skip solid ideas.",
+            "Be the honest friend. Which ideas have real problems — not nitpicks, but genuine weaknesses that would matter? Name them plainly. Skip the solid ones.",
+          reminder: "One sentence per weakness. Only flag real problems.",
           color: colors[2],
           context: [
             { column: "ideas", row: "current" as const, count: "single" as const },
@@ -77,7 +77,7 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "builds",
           systemPrompt:
-            "Propose 2–3 builds — combine ideas, pivot weak ones, or address criticisms. Each build should be stronger than any single idea.",
+            "Take the best raw material — strong ideas, valid critiques — and propose 2–3 stronger combinations. Each build should be better than any single idea alone.",
           reminder: "2–3 numbered builds. One sentence each + why it's stronger.",
           color: colors[3],
           context: [
@@ -88,15 +88,27 @@ export const PRESETS: Preset[] = [
         },
         {
           id: columnId(),
-          name: "gameplan",
+          name: "wonders",
           systemPrompt:
-            "Recommend a path forward — which themes to prioritize, which builds are most promising. Then pose 1–2 provocative what-if questions or unexplored angles that could shift the direction entirely.",
-          reminder: "One paragraph recommendation, then 1–2 what-if questions. Push the thinking further.",
+            "What hasn't anyone said yet? What assumptions is this whole brainstorm sitting on? What's the question nobody's asking? Be the one who changes the frame.",
+          reminder: "2–3 questions or unexplored angles. Provocative, not safe.",
           color: colors[4],
           context: [
             { column: "themes", row: "current" as const, count: "single" as const },
             { column: "critique", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "gameplan",
+          systemPrompt:
+            "Cut through the noise. What's the most promising direction given the builds and the blind spots the wonders revealed? Be decisive — pick a direction and say why.",
+          reminder: "One opinionated paragraph. Commit to a direction.",
+          color: colors[5],
+          context: [
             { column: "builds", row: "current" as const, count: "single" as const },
+            { column: "wonders", row: "current" as const, count: "single" as const },
           ],
         },
       ];
@@ -104,7 +116,7 @@ export const PRESETS: Preset[] = [
   },
   {
     name: "Research",
-    description: "Explore & map a topic.",
+    description: "Map what you know and find what you don't.",
     create: () => {
       const colors = [...PRESET_COLORS];
       return [
@@ -112,8 +124,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "concepts",
           systemPrompt:
-            "Maintain a glossary of key concepts discussed. 1–2 sentence definition each. Add new ones, update evolving ones.",
-          reminder: "Glossary format: concept name then definition. No commentary.",
+            "Build a running glossary of key concepts. Define each in 1–2 plain sentences. When a concept evolves or gets clarified, update the definition. This is the shared vocabulary.",
+          reminder: "Concept: definition format. Plain language. Update as understanding shifts.",
           color: colors[2],
           context: [
             { column: "input", row: "current" as const, count: "all" as const },
@@ -124,8 +136,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "questions",
           systemPrompt:
-            "Track open questions. Mark answered ones as resolved. Focus on genuine uncertainties.",
-          reminder: "Checklist format. Mark resolved questions. Keep open ones.",
+            "What don't we know yet? Track genuine open questions — not rhetorical ones. When something gets answered, mark it resolved but keep it visible. New questions matter more than old ones.",
+          reminder: "Checklist. Mark resolved. Prioritize new unknowns.",
           color: colors[1],
           context: [
             { column: "input", row: "current" as const, count: "all" as const },
@@ -136,8 +148,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "connections",
           systemPrompt:
-            "Identify how concepts relate — causes, prerequisites, tensions, analogies. Focus on non-obvious relationships.",
-          reminder: "One sentence per connection: 'X relates to Y because...'. Top 3–5 only.",
+            "How do these concepts actually relate? Look for causes, tensions, prerequisites, and surprising analogies. The non-obvious connections are the valuable ones.",
+          reminder: "Top 3–5 connections. 'X relates to Y because...' format.",
           color: colors[5],
           context: [
             { column: "concepts", row: "current" as const, count: "single" as const },
@@ -147,15 +159,29 @@ export const PRESETS: Preset[] = [
         },
         {
           id: columnId(),
+          name: "assumptions",
+          systemPrompt:
+            "What are we taking for granted that might be wrong? What does our current mental model assume without evidence? Name the beliefs we haven't tested — especially the ones that feel obvious.",
+          reminder: "2–4 bullets starting with 'We're assuming...'",
+          color: colors[0],
+          context: [
+            { column: "concepts", row: "current" as const, count: "single" as const },
+            { column: "connections", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
           name: "understanding",
           systemPrompt:
-            "Summarize what's established so far, then focus on what's still fuzzy or contradictory. End with 1–2 specific questions that would most clarify the gaps.",
-          reminder: "One paragraph on what's clear, then 1–2 questions to explore next.",
+            "Where do we actually stand? What's solid, what's shaky, and what's the single most important thing to figure out next? Be honest about confidence levels.",
+          reminder: "One paragraph: what's clear, what's fuzzy, what to explore next.",
           color: colors[3],
           context: [
             { column: "concepts", row: "current" as const, count: "single" as const },
             { column: "questions", row: "current" as const, count: "single" as const },
             { column: "connections", row: "current" as const, count: "single" as const },
+            { column: "assumptions", row: "current" as const, count: "single" as const },
           ],
         },
       ];
@@ -163,7 +189,7 @@ export const PRESETS: Preset[] = [
   },
   {
     name: "Think It Through",
-    description: "Stress-test any argument.",
+    description: "Your toughest critic, then a path forward.",
     create: () => {
       const colors = [...PRESET_COLORS];
       return [
@@ -171,8 +197,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "position",
           systemPrompt:
-            "Distill the speaker's current position into one clear statement. Capture the core claim and key reasoning. Update as it evolves.",
-          reminder: "One clear paragraph. State the position as if committing to it now.",
+            "What is the speaker actually saying? Distill it to the core claim and key reasoning. State it as clearly and charitably as possible — as if you were committing to this position yourself.",
+          reminder: "One clear paragraph. State the position, not your opinion of it.",
           color: colors[0],
           context: [
             { column: "input", row: "current" as const, count: "all" as const },
@@ -183,8 +209,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "evidence",
           systemPrompt:
-            "List every piece of evidence, example, or data point cited. Include things mentioned in passing. Don't add your own.",
-          reminder: "Bulleted list. One piece of evidence per bullet. No editorializing.",
+            "What evidence has actually been put on the table? List every fact, example, data point, or experience cited. Only what was said — never add your own.",
+          reminder: "Bulleted list. One piece of evidence per bullet. Nothing invented.",
           color: colors[5],
           context: [
             { column: "input", row: "current" as const, count: "all" as const },
@@ -195,8 +221,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "assumptions",
           systemPrompt:
-            "What hidden assumptions does this position rest on? What must be true for the argument to hold? Focus on unstated beliefs.",
-          reminder: "3–5 assumptions as bullets. One sentence each.",
+            "What has to be true for this position to hold — but hasn't been said out loud? Find the load-bearing beliefs. The ones where, if they're wrong, the whole thing falls apart.",
+          reminder: "3–5 bullets. Focus on unstated, load-bearing beliefs.",
           color: colors[1],
           context: [
             { column: "position", row: "current" as const, count: "single" as const },
@@ -208,8 +234,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "pushback",
           systemPrompt:
-            "Steel-man the strongest counterargument. Use the speaker's own evidence gaps and assumptions. Be rigorous, not contrarian.",
-          reminder: "2–3 forceful sentences. Argue as if you genuinely hold the opposing view.",
+            "Steel-man the strongest counterargument. Don't be contrarian for sport — argue as if you genuinely believe the other side. Use the speaker's own evidence gaps and shaky assumptions.",
+          reminder: "2–3 forceful sentences. Mean it.",
           color: colors[4],
           context: [
             { column: "position", row: "current" as const, count: "single" as const },
@@ -221,8 +247,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "verdict",
           systemPrompt:
-            "Assess the position's overall strength — what holds up, what doesn't. Then identify the 2–3 questions that, if answered, would most change the picture. Focus on things the speaker could actually investigate or think through.",
-          reminder: "One paragraph assessment, then 2–3 concrete questions to investigate.",
+            "How strong is this position, honestly? What holds up under scrutiny and what doesn't? Don't hedge — say where you'd put your money.",
+          reminder: "One paragraph. Direct and honest.",
           color: colors[6],
           context: [
             { column: "position", row: "current" as const, count: "single" as const },
@@ -231,63 +257,62 @@ export const PRESETS: Preset[] = [
             { column: "pushback", row: "current" as const, count: "single" as const },
           ],
         },
+        {
+          id: columnId(),
+          name: "investigate",
+          systemPrompt:
+            "What would actually change the picture? Name 2–3 specific things the speaker could go find out, test, or think harder about. Not rhetorical questions — real next steps for getting closer to the truth.",
+          reminder: "2–3 numbered questions. Things you could actually go do.",
+          color: colors[7],
+          context: [
+            { column: "assumptions", row: "current" as const, count: "single" as const },
+            { column: "pushback", row: "current" as const, count: "single" as const },
+            { column: "verdict", row: "current" as const, count: "single" as const },
+          ],
+        },
       ];
     },
   },
   {
-    name: "Idea Evaluator",
-    description: "Vet any idea from customer to moat.",
+    name: "Plan",
+    description: "From goal to first step.",
     create: () => {
       const colors = [...PRESET_COLORS];
       return [
-        // Layer 1 — independent lenses
         {
           id: columnId(),
-          name: "customer",
+          name: "goals",
           systemPrompt:
-            "Analyze the target customer. Who has this problem? Is it a painkiller or vitamin? How large is the audience?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
-          color: colors[0],
-          context: [
-            { column: "input", row: "current" as const, count: "all" as const },
-            { column: "self", row: "previous" as const, count: "all" as const },
-          ],
-        },
-        {
-          id: columnId(),
-          name: "feasibility",
-          systemPrompt:
-            "Assess technical feasibility. What needs to be built? What's the hardest part? What can be leveraged from existing technology?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
-          color: colors[1],
-          context: [
-            { column: "input", row: "current" as const, count: "all" as const },
-            { column: "self", row: "previous" as const, count: "all" as const },
-          ],
-        },
-        {
-          id: columnId(),
-          name: "market",
-          systemPrompt:
-            "Analyze the competitive landscape. Who are the competitors? What's the market size and timing? What trends help or threaten this?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
+            "What does success actually look like? Not vague aspirations — concrete outcomes. If there are multiple goals, name them and be honest about which ones conflict.",
+          reminder: "Numbered list. Each goal is a concrete, testable outcome.",
           color: colors[2],
           context: [
             { column: "input", row: "current" as const, count: "all" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "constraints",
+          systemPrompt:
+            "What are the real limits? Time, money, skills, dependencies, politics — whatever's actually going to constrain this. Be specific, not hypothetical.",
+          reminder: "Bulleted list. Only constraints that materially affect the plan.",
+          color: colors[6],
+          context: [
+            { column: "input", row: "current" as const, count: "all" as const },
             { column: "self", row: "previous" as const, count: "all" as const },
           ],
         },
-        // Layer 2 — cross-cutting
         {
           id: columnId(),
-          name: "business_model",
+          name: "steps",
           systemPrompt:
-            "Evaluate the business model. How does this make money? What's the pricing strategy and path to profitability?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
-          color: colors[3],
+            "Given these goals and constraints, what are the concrete steps? Order matters — what has to happen before what? Each step should be something a person could actually sit down and do.",
+          reminder: "Numbered steps. Concrete and ordered. No hand-waving.",
+          color: colors[1],
           context: [
-            { column: "customer", row: "current" as const, count: "single" as const },
-            { column: "feasibility", row: "current" as const, count: "single" as const },
+            { column: "goals", row: "current" as const, count: "single" as const },
+            { column: "constraints", row: "current" as const, count: "single" as const },
             { column: "self", row: "previous" as const, count: "single" as const },
           ],
         },
@@ -295,41 +320,25 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "risks",
           systemPrompt:
-            "Identify the biggest risks. What could go wrong technically, in the market, or in execution?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
-          color: colors[4],
+            "Where could this plan go sideways? Not every possible thing — the 2–3 risks that are most likely or most damaging. For each, say what you'd watch for as an early warning sign.",
+          reminder: "2–3 risks. Each with a warning sign.",
+          color: colors[0],
           context: [
-            { column: "customer", row: "current" as const, count: "single" as const },
-            { column: "feasibility", row: "current" as const, count: "single" as const },
-            { column: "market", row: "current" as const, count: "single" as const },
+            { column: "steps", row: "current" as const, count: "single" as const },
+            { column: "constraints", row: "current" as const, count: "single" as const },
             { column: "self", row: "previous" as const, count: "single" as const },
           ],
         },
         {
           id: columnId(),
-          name: "moat",
+          name: "next_move",
           systemPrompt:
-            "Assess defensibility. What creates a moat — network effects, switching costs, technical barriers, or brand?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
-          color: colors[5],
+            "Cut to the chase: what's the single most important thing to do right now? Not the whole plan — just step one. Say what it is, why it's first, and what you'll know after doing it.",
+          reminder: "One paragraph. The single next action and why it's first.",
+          color: colors[3],
           context: [
-            { column: "market", row: "current" as const, count: "single" as const },
-            { column: "feasibility", row: "current" as const, count: "single" as const },
-            { column: "self", row: "previous" as const, count: "single" as const },
-          ],
-        },
-        // Layer 3 — synthesis
-        {
-          id: columnId(),
-          name: "verdict",
-          systemPrompt:
-            "Deliver a go or no-go verdict with your reasoning. Then name the single riskiest assumption and what the speaker should validate first.",
-          reminder: "Reply in 2–3 plain sentences. End with what to validate next.",
-          color: colors[6],
-          context: [
-            { column: "business_model", row: "current" as const, count: "single" as const },
+            { column: "steps", row: "current" as const, count: "single" as const },
             { column: "risks", row: "current" as const, count: "single" as const },
-            { column: "moat", row: "current" as const, count: "single" as const },
           ],
         },
       ];
