@@ -8,9 +8,10 @@ import {
   useMessage,
 } from "@assistant-ui/react";
 import type { ColumnarState } from "../hooks/useColumnar.js";
+import type { ColumnContextRef } from "../../shared/types.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
-import { PRESET_COLORS, PRESETS, columnId } from "../../shared/defaults.js";
+import { PRESET_COLORS, PRESETS, columnId, displayName } from "../../shared/defaults.js";
 
 const FocusContext = createContext<{
   focused: string | null;
@@ -23,6 +24,104 @@ const ChatActionsContext = createContext<{
   hovered: { column: string; step: number } | null;
   setHovered: (h: { column: string; step: number } | null) => void;
 }>({ addColumnAndEdit: () => {}, hovered: null, setHovered: () => {} });
+
+function EmptyColumnStrip({ name, color, prompt, dimmed, onMouseEnter, onMouseLeave }: {
+  name: string;
+  color: string;
+  prompt?: string;
+  dimmed: boolean;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+}) {
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
+  const buttonRef = useRef<HTMLSpanElement>(null);
+
+  const showTooltip = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltipStyle({
+      position: "fixed",
+      bottom: window.innerHeight - rect.bottom,
+      left: rect.right + 8,
+    });
+  }, []);
+
+  const hideTooltip = useCallback(() => setTooltipStyle(null), []);
+
+  return (
+    <div
+      className={`empty-column-strip${dimmed ? " dimmed" : ""}`}
+      style={{ "--column-color": color } as React.CSSProperties}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <span className="column-card-bar-label">{displayName(name)}</span>
+      {prompt && (
+        <span
+          ref={buttonRef}
+          className="prompt-hint-button"
+          onMouseEnter={(e) => { e.stopPropagation(); showTooltip(); }}
+          onMouseLeave={(e) => { e.stopPropagation(); hideTooltip(); }}
+          aria-label="View system prompt"
+        >
+          ?
+        </span>
+      )}
+      {tooltipStyle && createPortal(
+        <div
+          className="prompt-tooltip"
+          style={tooltipStyle}
+          onMouseEnter={showTooltip}
+          onMouseLeave={hideTooltip}
+        >
+          {prompt}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function EmptyColumnsPreview({
+  columnOrder,
+  columnColors,
+  columnPrompts,
+  columnContext,
+}: {
+  columnOrder: string[];
+  columnColors: Record<string, string>;
+  columnPrompts: Record<string, string>;
+  columnContext: Record<string, ColumnContextRef[]>;
+}) {
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  function isDimmed(name: string): boolean {
+    if (!hovered) return false;
+    if (name === hovered) return false;
+    const refs = columnContext[hovered];
+    if (!refs) return true;
+    return !refs.some((ref) => {
+      const refCol = ref.column === "self" ? hovered : ref.column;
+      return refCol === name;
+    });
+  }
+
+  return (
+    <div className="empty-columns-preview">
+      {columnOrder.map((name) => (
+        <EmptyColumnStrip
+          key={name}
+          name={name}
+          color={columnColors[name]}
+          prompt={columnPrompts[name]}
+          dimmed={isDimmed(name)}
+          onMouseEnter={() => setHovered(name)}
+          onMouseLeave={() => setHovered(null)}
+        />
+      ))}
+    </div>
+  );
+}
 
 interface ChatProps {
   state: ColumnarState;
@@ -116,7 +215,7 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
               <p>
                 One message in, multiple perspectives out.
               </p>
-              {columnOrder.length === 0 && (
+              {columnOrder.length === 0 ? (
                 <div className="preset-picker">
                   {PRESETS.map((preset) => (
                     <button
@@ -136,8 +235,14 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
                     or build your own
                   </button>
                 </div>
+              ) : (
+                <EmptyColumnsPreview
+                  columnOrder={columnOrder}
+                  columnColors={columnColors}
+                  columnPrompts={columnPrompts}
+                  columnContext={columnContext}
+                />
               )}
-              <div className="thread-empty-footer">Columnar Chat Engine</div>
             </div>
           </ThreadPrimitive.Empty>
 

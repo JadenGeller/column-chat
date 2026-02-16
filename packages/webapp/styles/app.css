@@ -241,7 +241,7 @@ body,
   justify-content: center;
   flex: 1;
   text-align: center;
-  gap: 20px;
+  gap: 28px;
   padding: 48px 16px;
   position: sticky;
   left: 0;
@@ -288,6 +288,30 @@ body,
   text-transform: uppercase;
   color: var(--text-dim);
   margin-top: 8px;
+}
+
+/* Empty state column preview strips */
+.empty-columns-preview {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.empty-column-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 40px;
+  height: 240px;
+  background: var(--column-color, var(--red));
+  padding: 10px 0;
+  transition: filter 0.15s ease;
+}
+
+.empty-column-strip.dimmed {
+  filter: grayscale(1);
 }
 
 /* Preset picker */
