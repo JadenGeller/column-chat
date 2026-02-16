@@ -473,6 +473,15 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
               )}
             </>
           )}
+          {state.shareLink && (
+            <button
+              className="clear-button"
+              style={{ marginLeft: "auto" }}
+              onClick={() => navigator.clipboard.writeText(state.shareLink!)}
+            >
+              Copy link
+            </button>
+          )}
         </div>
       </div>
     </div>

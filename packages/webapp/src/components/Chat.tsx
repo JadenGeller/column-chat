@@ -315,14 +315,6 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
                 New chat
               </button>
             )}
-            {state.shareLink && (
-              <button
-                className="clear-button"
-                onClick={() => navigator.clipboard.writeText(state.shareLink!)}
-              >
-                Copy link
-              </button>
-            )}
             {state.mode === "local" && onChangeApiKey && (
               <button
                 className="clear-button"
