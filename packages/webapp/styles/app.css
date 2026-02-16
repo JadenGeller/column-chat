@@ -829,7 +829,7 @@ body,
   flex-direction: row;
   gap: 12px;
   overflow-x: auto;
-  padding: 48px var(--content-inset) 160px;
+  padding: 48px 0 160px var(--content-inset);
   align-items: stretch;
   position: relative;
   z-index: 1;
