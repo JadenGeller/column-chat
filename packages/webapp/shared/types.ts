@@ -72,6 +72,13 @@ export function validateConfig(config: SessionConfig): string | null {
     if (RESERVED_NAMES.has(col.name)) return `"${col.name}" is reserved`;
     if (seen.has(col.name)) return `Duplicate name: "${col.name}"`;
     seen.add(col.name);
+
+    for (const ref of col.context) {
+      if (ref.column === "input" || ref.column === "self") continue;
+      if (!seen.has(ref.column)) {
+        return `${col.name}: references "${ref.column}" which doesn't exist or appears later`;
+      }
+    }
   }
 
   const cycle = detectCurrentCycle(config);

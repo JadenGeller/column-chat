@@ -122,56 +122,46 @@ export function parseGenerateResponse(text: string): Omit<ColumnConfig, "id">[] 
 
   const RESERVED = new Set(["input", "self"]);
   const validColors = new Set<string>(PRESET_COLORS);
-  const seenNames = new Set<string>();
+
+  // First pass: parse all columns and collect names
+  const allNames = new Set<string>();
   const columns: Omit<ColumnConfig, "id">[] = [];
 
   for (let i = 0; i < parsed.length; i++) {
     const raw = parsed[i];
 
-    // Validate name
     const name = typeof raw.name === "string" ? raw.name.trim().toLowerCase().replace(/\s+/g, "_") : "";
     if (!name) throw new Error(`Column at index ${i} has no name`);
     if (RESERVED.has(name)) throw new Error(`"${name}" is a reserved name`);
-    if (seenNames.has(name)) throw new Error(`Duplicate column name: "${name}"`);
-    seenNames.add(name);
+    if (allNames.has(name)) throw new Error(`Duplicate column name: "${name}"`);
+    allNames.add(name);
 
-    // Validate systemPrompt
     const systemPrompt = typeof raw.systemPrompt === "string" ? raw.systemPrompt.trim() : "";
     if (!systemPrompt) throw new Error(`Column "${name}" has no system prompt`);
 
-    // Validate reminder
     const reminder = typeof raw.reminder === "string" ? raw.reminder.trim() : "Keep responses brief.";
 
-    // Validate color
     let color = typeof raw.color === "string" ? raw.color.trim() : "";
     if (!validColors.has(color)) {
       color = PRESET_COLORS[i % PRESET_COLORS.length];
     }
 
-    // Validate context refs
+    // Parse context refs — drop refs to non-existent columns
     const context: ColumnContextRef[] = [];
     if (Array.isArray(raw.context)) {
       for (const ref of raw.context) {
         const col = typeof ref.column === "string" ? ref.column.trim().toLowerCase().replace(/\s+/g, "_") : "";
         if (!col) continue;
 
-        // Validate row
+        // Drop refs to columns not in the generated set
+        if (col !== "input" && col !== "self" && !allNames.has(col)) continue;
+
         const row = ref.row === "previous" ? "previous" as const : "current" as const;
-
-        // Validate count
         const count = ref.count === "all" ? "all" as const : "single" as const;
-
-        // Validate column reference
-        if (col !== "input" && col !== "self" && !seenNames.has(col)) {
-          // Skip refs to columns that don't exist yet (would break topological order)
-          continue;
-        }
-
         context.push({ column: col, row, count });
       }
     }
 
-    // Ensure at least a basic context if none valid
     if (context.length === 0) {
       context.push(
         { column: "input", row: "current", count: "all" },
@@ -182,7 +172,29 @@ export function parseGenerateResponse(text: string): Omit<ColumnConfig, "id">[] 
     columns.push({ name, systemPrompt, reminder, color, context });
   }
 
-  return columns;
+  // Topological sort — resolve forward references by reordering
+  const byName = new Map(columns.map((c) => [c.name, c]));
+  const visited = new Set<string>();
+  const sorted: Omit<ColumnConfig, "id">[] = [];
+
+  function visit(name: string) {
+    if (visited.has(name)) return;
+    visited.add(name);
+    const col = byName.get(name);
+    if (!col) return;
+    for (const ref of col.context) {
+      if (ref.column !== "input" && ref.column !== "self") {
+        visit(ref.column);
+      }
+    }
+    sorted.push(col);
+  }
+
+  for (const col of columns) {
+    visit(col.name);
+  }
+
+  return sorted;
 }
 
 /** Convert AI-generated columns into mutations against the current applied config. */
@@ -191,11 +203,8 @@ export function configToMutations(
   appliedConfig: SessionConfig,
 ): Mutation[] {
   const mutations: Mutation[] = [];
-  const appliedByName = new Map(appliedConfig.map((c) => [c.name, c]));
-  const generatedNames = new Set(generated.map((c) => c.name));
   const usedColors = new Set<string>();
 
-  // Pick a color, avoiding duplicates
   function pickColor(preferred: string): string {
     const validColors = new Set<string>(PRESET_COLORS);
     if (validColors.has(preferred) && !usedColors.has(preferred)) {
@@ -208,43 +217,24 @@ export function configToMutations(
     return color;
   }
 
-  // Process generated columns: add or update
-  for (const gen of generated) {
-    const existing = appliedByName.get(gen.name);
-    if (existing) {
-      // Update existing column (preserve ID)
-      const color = pickColor(gen.color);
-      const changes: Partial<Omit<ColumnConfig, "id">> = {};
-      if (gen.systemPrompt !== existing.systemPrompt) changes.systemPrompt = gen.systemPrompt;
-      if (gen.reminder !== existing.reminder) changes.reminder = gen.reminder;
-      if (color !== existing.color) changes.color = color;
-      if (JSON.stringify(gen.context) !== JSON.stringify(existing.context)) changes.context = gen.context;
-
-      if (Object.keys(changes).length > 0) {
-        mutations.push({ type: "update", id: existing.id, changes });
-      }
-    } else {
-      // Add new column
-      const color = pickColor(gen.color);
-      mutations.push({
-        type: "add",
-        config: {
-          id: columnId(),
-          name: gen.name,
-          systemPrompt: gen.systemPrompt,
-          reminder: gen.reminder,
-          color,
-          context: gen.context,
-        },
-      });
-    }
+  // Remove all existing columns first, then add generated ones in order.
+  // This guarantees the result matches the AI's topological ordering.
+  for (const applied of appliedConfig) {
+    mutations.push({ type: "remove", id: applied.id });
   }
 
-  // Remove columns not in generated output
-  for (const applied of appliedConfig) {
-    if (!generatedNames.has(applied.name)) {
-      mutations.push({ type: "remove", id: applied.id });
-    }
+  for (const gen of generated) {
+    mutations.push({
+      type: "add",
+      config: {
+        id: columnId(),
+        name: gen.name,
+        systemPrompt: gen.systemPrompt,
+        reminder: gen.reminder,
+        color: pickColor(gen.color),
+        context: gen.context,
+      },
+    });
   }
 
   return mutations;
