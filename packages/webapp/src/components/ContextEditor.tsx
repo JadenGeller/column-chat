@@ -8,7 +8,7 @@ interface ContextEditorProps {
 }
 
 export function ContextEditor({ context, availableColumns, onChange }: ContextEditorProps) {
-  const columnOptions = ["user", "self", ...availableColumns];
+  const columnOptions = ["input", "self", ...availableColumns];
 
   const updateRef = (index: number, updates: Partial<ColumnContextRef>) => {
     const next = context.map((ref, i) =>
@@ -22,7 +22,7 @@ export function ContextEditor({ context, availableColumns, onChange }: ContextEd
   };
 
   const addRef = () => {
-    onChange([...context, { column: "user", windowMode: "all" }]);
+    onChange([...context, { column: "input", windowMode: "all" }]);
   };
 
   return (

@@ -4,7 +4,7 @@ import { createSessionFromConfig } from "./flow.js";
 import { DEFAULT_CONFIG } from "../shared/defaults.js";
 import type { SessionConfig } from "../shared/types.js";
 
-const RESERVED_NAMES = new Set(["user", "self"]);
+const RESERVED_NAMES = new Set(["input", "self"]);
 
 function validateConfig(config: SessionConfig): string | null {
   if (!Array.isArray(config) || config.length === 0) {
@@ -31,7 +31,7 @@ function validateConfig(config: SessionConfig): string | null {
     }
 
     for (const ref of col.context) {
-      if (ref.column === "user" || ref.column === "self") continue;
+      if (ref.column === "input" || ref.column === "self") continue;
       if (!seen.has(ref.column)) {
         return `Column "${col.name}" references "${ref.column}" which doesn't appear before it`;
       }
@@ -48,7 +48,7 @@ const app = new Elysia()
   .post("/api/chat", async ({ body }) => {
     const { message } = body as { message: string };
 
-    session.user.push(message);
+    session.input.push(message);
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -106,11 +106,11 @@ const app = new Elysia()
     return { ok: true, config: currentConfig };
   })
   .get("/api/messages", () => {
-    const steps: Array<{ user: string; columns: Record<string, string> }> = [];
+    const steps: Array<{ input: string; columns: Record<string, string> }> = [];
 
     for (let step = 0; ; step++) {
-      const userValue = session.f.get("user", step);
-      if (userValue === undefined) break;
+      const inputValue = session.f.get("input", step);
+      if (inputValue === undefined) break;
 
       const columns: Record<string, string> = {};
       for (const name of session.columnOrder) {
@@ -120,7 +120,7 @@ const app = new Elysia()
         }
       }
 
-      steps.push({ user: userValue, columns });
+      steps.push({ input: inputValue, columns });
     }
 
     return {

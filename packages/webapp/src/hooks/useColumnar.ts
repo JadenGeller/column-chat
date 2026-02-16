@@ -3,7 +3,7 @@ import type { SessionConfig } from "../../shared/types.js";
 import { DEFAULT_CONFIG } from "../../shared/defaults.js";
 
 export interface Step {
-  user: string;
+  input: string;
   columns: Record<string, string>;
   isRunning: boolean;
   error?: string;
@@ -57,7 +57,7 @@ export function useColumnar(): ColumnarState {
     fetch("/api/messages")
       .then((res) => res.json())
       .then((data: {
-        steps: Array<{ user: string; columns: Record<string, string> }>;
+        steps: Array<{ input: string; columns: Record<string, string> }>;
         columnOrder: string[];
         config: SessionConfig;
       }) => {
@@ -73,7 +73,7 @@ export function useColumnar(): ColumnarState {
 
     setSteps((prev) => [
       ...prev,
-      { user: text, columns: {}, isRunning: true },
+      { input: text, columns: {}, isRunning: true },
     ]);
     setIsRunning(true);
 

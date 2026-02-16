@@ -5,10 +5,10 @@ import type { SessionConfig, ColumnContextRef } from "../shared/types.js";
 
 const model = anthropic("claude-sonnet-4-5-20250929");
 
-function footer(text: string) {
+function reminder(text: string) {
   return (inputs: ContextInput[], step: number): ContextInput[] => [
     ...inputs,
-    { role: "user", entries: [{ step, value: text }] },
+    { role: "user", entries: [{ step, value: `<system-reminder>\n${text}\n</system-reminder>` }] },
   ];
 }
 
@@ -23,10 +23,10 @@ function resolveWindowMode(
 
 export function createSessionFromConfig(config: SessionConfig) {
   const storage = inMemoryStorage();
-  const user = source("user", { storage });
+  const input = source("input", { storage });
 
   const columnMap = new Map<string, ColumnView>();
-  columnMap.set("user", user);
+  columnMap.set("input", input);
 
   const leafColumns: DerivedColumn[] = [];
 
@@ -44,7 +44,7 @@ export function createSessionFromConfig(config: SessionConfig) {
 
     const col = column(cfg.name, {
       context: contextViews,
-      transform: cfg.footerText ? footer(cfg.footerText) : undefined,
+      transform: cfg.reminder ? reminder(cfg.reminder) : undefined,
       compute: prompt(model, cfg.systemPrompt, { stream: true }),
       storage,
     });
@@ -56,5 +56,5 @@ export function createSessionFromConfig(config: SessionConfig) {
   const f = flow(...leafColumns);
   const columnOrder = config.map((c) => c.name);
 
-  return { user, f, columnOrder };
+  return { input, f, columnOrder };
 }

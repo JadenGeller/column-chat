@@ -127,12 +127,12 @@ export function ColumnConfigCard({
           </div>
 
           <div className="config-field">
-            <label className="config-label">Footer Text</label>
+            <label className="config-label">Reminder</label>
             <input
               className="config-input"
-              value={config.footerText}
-              onChange={(e) => onUpdate({ footerText: e.target.value })}
-              placeholder="Optional footer instruction"
+              value={config.reminder}
+              onChange={(e) => onUpdate({ reminder: e.target.value })}
+              placeholder="Optional reminder instruction"
             />
           </div>
 

@@ -24,7 +24,7 @@ export function useColumnarRuntime(
 
     messages.push({
       role: "user",
-      content: step.user,
+      content: step.input,
       id: `user-${i}`,
     });
 

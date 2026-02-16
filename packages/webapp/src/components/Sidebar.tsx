@@ -8,7 +8,7 @@ interface SidebarProps {
   state: ColumnarState;
 }
 
-const RESERVED_NAMES = new Set(["user", "self"]);
+const RESERVED_NAMES = new Set(["input", "self"]);
 
 function validateConfig(config: SessionConfig): string | null {
   if (config.length === 0) return "At least one column is required";
@@ -21,7 +21,7 @@ function validateConfig(config: SessionConfig): string | null {
     seen.add(col.name);
 
     for (const ref of col.context) {
-      if (ref.column === "user" || ref.column === "self") continue;
+      if (ref.column === "input" || ref.column === "self") continue;
       if (!seen.has(ref.column)) {
         return `"${col.name}" references "${ref.column}" which appears after it`;
       }
@@ -81,7 +81,7 @@ export function Sidebar({ state }: SidebarProps) {
       next[i] = {
         ...next[i],
         context: next[i].context.filter(
-          (ref) => ref.column === "user" || ref.column === "self" || preceding.has(ref.column)
+          (ref) => ref.column === "input" || ref.column === "self" || preceding.has(ref.column)
         ),
       };
     }
@@ -100,10 +100,10 @@ export function Sidebar({ state }: SidebarProps) {
     const newCol: ColumnConfig = {
       name: `column_${n}`,
       systemPrompt: "",
-      footerText: "",
+      reminder: "",
       color,
       context: [
-        { column: "user", windowMode: "all" },
+        { column: "input", windowMode: "all" },
         { column: "self", windowMode: "all" },
       ],
     };
