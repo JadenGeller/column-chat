@@ -251,12 +251,21 @@ export function flow(...leaves: Column[]): Flow {
   function addColumn(col: DerivedColumn): void {
     if (allSet.has(col)) return;
 
-    // Validate all deps exist in the flow
+    // Auto-discover source dependencies; validate derived deps exist
     for (const view of col.context) {
-      if (!isSelfView(view) && !allSet.has(view._column as Column)) {
-        throw new Error(
-          `Dependency "${(view._column as Column)._name}" not found in flow`
-        );
+      if (!isSelfView(view)) {
+        const dep = view._column as Column;
+        if (!allSet.has(dep)) {
+          if (dep.kind === "source") {
+            allSet.add(dep);
+            sources.push(dep);
+            nameMap.set(dep._name, dep);
+          } else {
+            throw new Error(
+              `Dependency "${dep._name}" not found in flow`
+            );
+          }
+        }
       }
     }
 
