@@ -11,16 +11,24 @@ Columnar is a TypeScript library for step-synchronized, columnar dataflow over L
 
 ## Architecture
 
-The library's core job is: given column definitions and stored history, produce a messages array in AI SDK format. The library does NOT call LLMs — it assembles context and hands it to a user-provided compute function.
+Bun workspaces monorepo. The library's core job is: given column definitions and stored history, produce a messages array in AI SDK format. The library does NOT call LLMs — it assembles context and hands it to a user-provided compute function.
 
 ```
-src/
-  types.ts        — Source, Derived, ColumnView, self sentinel
-  column.ts       — source(), column() constructors, view methods (.latest, .window(n), .as())
-  flow.ts         — flow(), run(), get(), addColumn(), DAG resolution, topo sort
-  context.ts      — assembleMessages() — THE HEART OF THE LIBRARY
-  prompt.ts       — thin convenience helper (not core)
-  index.ts        — public exports
+packages/
+  columnar/               — Core library
+    src/
+      types.ts            — Source, Derived, ColumnView, self sentinel, ColumnStorage
+      column.ts           — source(), column() constructors, view methods, createInMemoryStorage()
+      flow.ts             — flow(), run(), get(), addColumn(), DAG resolution, topo sort
+      context.ts          — assembleMessages() — THE HEART OF THE LIBRARY
+      prompt.ts           — thin convenience helper (not core)
+      index.ts            — public exports
+    examples/chat.ts      — Multi-column chat example
+  cli/                    — CLI utilities (filesystem storage)
+    src/
+      storage.ts          — createFileSystemStorage(dir) — ColumnStorage backed by one file per step
+      index.ts            — public exports
+    examples/chat.ts      — File-based chat example
 ```
 
 ## Build Order
@@ -59,8 +67,6 @@ Then test the full lifecycle: push → run → get.
 
 ## What NOT to Build
 
-- No storage backends. In-memory only.
 - No streaming of LLM tokens. `run()` streams column completions, not token-level output.
 - No UI. This is a library.
-- No persistence across process restarts.
 - No editing past values. Append-only.

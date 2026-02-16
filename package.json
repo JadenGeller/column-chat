@@ -1,23 +1,9 @@
 {
-  "name": "columnar",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "src/index.ts",
-  "scripts": {
-    "test": "bun test"
-  },
-  "peerDependencies": {
-    "ai": "^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "ai": {
-      "optional": true
-    }
-  },
+  "name": "columnar-root",
+  "private": true,
+  "workspaces": ["packages/*"],
   "devDependencies": {
     "typescript": "^5.7.0",
-    "@types/bun": "latest",
-    "ai": "^4.0.0",
-    "@ai-sdk/anthropic": "^1.0.0"
+    "@types/bun": "latest"
   }
 }

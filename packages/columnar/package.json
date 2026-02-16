@@ -1,0 +1,12 @@
+{
+  "name": "columnar",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "ai": "^4.0.0",
+    "@ai-sdk/anthropic": "^1.0.0"
+  },
+  "peerDependencies": { "ai": "^4.0.0" },
+  "peerDependenciesMeta": { "ai": { "optional": true } }
+}

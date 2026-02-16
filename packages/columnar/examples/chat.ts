@@ -1,4 +1,4 @@
-import { source, column, self, flow, prompt } from "../src/index.js";
+import { source, column, self, flow, prompt } from "columnar";
 import { anthropic } from "@ai-sdk/anthropic";
 
 const model = anthropic("claude-sonnet-4-5-20250929");

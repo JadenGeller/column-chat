@@ -1,0 +1,13 @@
+{
+  "name": "columnar-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "columnar": "workspace:*"
+  },
+  "devDependencies": {
+    "ai": "^4.0.0",
+    "@ai-sdk/anthropic": "^1.0.0"
+  }
+}
