@@ -304,10 +304,10 @@ body,
   background: var(--cream);
   border: 3px solid var(--column-color, var(--red));
   box-shadow: 4px 4px 0 var(--column-color, var(--red));
-  min-height: 180px;
-  max-height: 360px;
-  flex: 0 0 320px;
-  width: 320px;
+  min-height: 240px;
+  max-height: 480px;
+  flex: 0 0 400px;
+  width: 400px;
 }
 
 .column-card.expanded {
@@ -324,9 +324,9 @@ body,
 
 /* Empty state card */
 .empty-column-card {
-  flex: 0 0 320px;
-  width: 320px;
-  min-height: 180px;
+  flex: 0 0 400px;
+  width: 400px;
+  min-height: 240px;
   display: flex;
   align-items: center;
   justify-content: center;
