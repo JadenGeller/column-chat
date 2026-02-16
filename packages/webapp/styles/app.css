@@ -868,6 +868,22 @@ body,
   color: var(--black);
 }
 
+/* When the add button is the only element (0 columns) */
+.config-add-btn-empty {
+  flex: 0 0 400px;
+  width: 400px;
+  align-self: flex-start;
+  min-height: 200px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.config-add-btn-label {
+  letter-spacing: 0.02em;
+}
+
 /* Footer — fixed to viewport, mirrors composer-container */
 .config-editor-footer {
   position: fixed;

@@ -232,8 +232,16 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
           );
         })}
 
-        <button className="config-add-btn" onClick={addColumn} aria-label="Add column">
-          +
+        <button
+          className={`config-add-btn${draftConfig.length === 0 ? " config-add-btn-empty" : ""}`}
+          onClick={addColumn}
+          aria-label="Add column"
+        >
+          {draftConfig.length === 0 ? (
+            <span className="config-add-btn-label">+ Add a column</span>
+          ) : (
+            "+"
+          )}
         </button>
       </div>
 

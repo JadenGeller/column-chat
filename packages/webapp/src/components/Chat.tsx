@@ -110,13 +110,12 @@ export function Chat({ state, scrollLeftRef }: ChatProps) {
           <ThreadPrimitive.Empty>
             <div className="thread-empty">
               <div className="thread-empty-mark">Vol. I / No. 1</div>
-              <h2>Thinking<br />Prism</h2>
+              <h2>Column<br />Chat</h2>
               <hr className="thread-empty-rule" />
               <p>
-                Write freely. Your thoughts will be refracted through multiple
-                analytical lenses.
+                One message in, multiple perspectives out.
               </p>
-              <div className="thread-empty-footer">Columnar Analysis Engine</div>
+              <div className="thread-empty-footer">Columnar Chat Engine</div>
             </div>
           </ThreadPrimitive.Empty>
 
@@ -132,7 +131,7 @@ export function Chat({ state, scrollLeftRef }: ChatProps) {
           <ComposerPrimitive.Root className="composer-root">
             <ComposerPrimitive.Input
               className="composer-input"
-              placeholder="Think out loud..."
+              placeholder="Say something..."
             />
             <ComposerPrimitive.Send className="composer-send">
               Send
@@ -204,9 +203,9 @@ function AssistantMessageContent() {
 }
 
 const EMPTY_MESSAGES = [
-  "it's a little quiet in here",
-  "really think you should add a column",
-  "your thoughts deserve more than silence",
+  "+ add a column to get started",
+  "still no columns\u2026 add one?",
+  "your thoughts deserve a column",
 ];
 
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
