@@ -111,12 +111,12 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
 
   for (const [id, col] of draftById) {
     if (!appliedById.has(id)) {
-      entries.push({ key: `add-${id}`, name: displayName(col.name || "Untitled"), kind: "added", columnId: id });
+      entries.push({ key: `add-${id}`, name: col.name || "untitled", kind: "added", columnId: id });
     }
   }
   for (const [id, col] of appliedById) {
     if (!draftById.has(id)) {
-      entries.push({ key: `del-${id}`, name: displayName(col.name), kind: "deleted", columnId: id });
+      entries.push({ key: `del-${id}`, name: col.name, kind: "deleted", columnId: id });
     }
   }
   for (const [id, col] of draftById) {
@@ -129,7 +129,7 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
     if (old.color !== col.color) diffs.push("color");
     if (JSON.stringify(old.context) !== JSON.stringify(col.context)) diffs.push("context");
     if (diffs.length > 0) {
-      entries.push({ key: `mod-${id}`, name: displayName(col.name || old.name || "Untitled"), detail: diffs.join(", "), kind: "modified", columnId: id });
+      entries.push({ key: `mod-${id}`, name: col.name || old.name || "untitled", detail: diffs.join(", "), kind: "modified", columnId: id });
     }
   }
 
@@ -309,9 +309,7 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
                   </label>
                 ))}
               </div>
-            ) : validationError ? (
-              <span className="config-editor-error">{validationError}</span>
-            ) : summary.length > 0 ? (
+            ) : summary.length > 0 || validationError ? (
               <div className="config-changes">
                 {summary.map((entry) => (
                   <div key={entry.key} className={`config-change-entry config-change-${entry.kind}`}>
@@ -331,6 +329,14 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
                     </button>
                   </div>
                 ))}
+                {validationError && (
+                  <div className="config-change-entry config-change-error">
+                    <span className="config-change-kind config-change-kind-error">
+                      error
+                    </span>
+                    <span className="config-change-name">{validationError}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <span className="config-status-empty">No changes</span>

@@ -68,6 +68,7 @@ export function validateConfig(config: SessionConfig): string | null {
   const seen = new Set<string>();
   for (const col of config) {
     if (!col.name) return "Column name cannot be empty";
+    if (!col.systemPrompt) return `${col.name}: system prompt cannot be empty`;
     if (RESERVED_NAMES.has(col.name)) return `"${col.name}" is reserved`;
     if (seen.has(col.name)) return `Duplicate name: "${col.name}"`;
     seen.add(col.name);

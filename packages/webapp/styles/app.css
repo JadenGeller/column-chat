@@ -1037,6 +1037,16 @@ body,
   border-color: var(--border-subtle);
 }
 
+.config-change-kind-error {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.config-change-error .config-change-name {
+  color: var(--red);
+  font-weight: 400;
+}
+
 /* Column name */
 .config-change-name {
   font-family: var(--font-display);

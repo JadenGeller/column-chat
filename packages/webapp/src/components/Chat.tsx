@@ -27,9 +27,10 @@ const ChatActionsContext = createContext<{
 interface ChatProps {
   state: ColumnarState;
   scrollLeftRef: MutableRefObject<number>;
+  onChangeApiKey?: () => void;
 }
 
-export function Chat({ state, scrollLeftRef }: ChatProps) {
+export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
   const { steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage, clearChat, setEditing, dispatch, draftConfig } = state;
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, columnContext, isRunning, sendMessage);
   const [focused, setFocusedRaw] = useState<string | null>(null);
@@ -151,6 +152,15 @@ export function Chat({ state, scrollLeftRef }: ChatProps) {
                 disabled={isRunning}
               >
                 New chat
+              </button>
+            )}
+            {state.mode === "local" && onChangeApiKey && (
+              <button
+                className="clear-button"
+                style={{ marginLeft: "auto" }}
+                onClick={onChangeApiKey}
+              >
+                API key
               </button>
             )}
           </div>

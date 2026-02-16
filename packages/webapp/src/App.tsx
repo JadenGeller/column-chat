@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useColumnar } from "./hooks/useColumnar.js";
 import { Chat } from "./components/Chat.js";
 import { ConfigEditor } from "./components/ConfigEditor.js";
@@ -11,10 +11,14 @@ interface AppProps {
 export function App({ chatId }: AppProps) {
   const state = useColumnar(chatId);
   const scrollLeftRef = useRef(0);
+  const [showApiKeyOverlay, setShowApiKeyOverlay] = useState(false);
 
-  // Show API key overlay in local mode when no key is set
-  if (state.mode === "local" && !state.apiKey) {
-    return <ApiKeyOverlay onSubmit={state.setApiKey} />;
+  // Show API key overlay in local mode when no key is set, or on demand
+  if (state.mode === "local" && (!state.apiKey || showApiKeyOverlay)) {
+    return <ApiKeyOverlay onSubmit={(key) => {
+      state.setApiKey(key);
+      setShowApiKeyOverlay(false);
+    }} />;
   }
 
   return (
@@ -28,7 +32,7 @@ export function App({ chatId }: AppProps) {
         <ConfigEditor state={state} scrollLeftRef={scrollLeftRef} />
       ) : (
         <div className="chat-area">
-          <Chat state={state} scrollLeftRef={scrollLeftRef} />
+          <Chat state={state} scrollLeftRef={scrollLeftRef} onChangeApiKey={() => setShowApiKeyOverlay(true)} />
         </div>
       )}
     </div>
