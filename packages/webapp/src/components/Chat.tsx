@@ -10,7 +10,7 @@ import {
 import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
-import { PRESET_COLORS, columnId } from "../../shared/defaults.js";
+import { PRESET_COLORS, PRESETS, columnId } from "../../shared/defaults.js";
 
 const FocusContext = createContext<{
   focused: string | null;
@@ -116,6 +116,27 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
               <p>
                 One message in, multiple perspectives out.
               </p>
+              {columnOrder.length === 0 && (
+                <div className="preset-picker">
+                  {PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      className="preset-card"
+                      onClick={() => state.loadPreset(preset.create())}
+                    >
+                      <span className="preset-card-label">Try: {preset.name}</span>
+                      <span className="preset-card-meta">{preset.create().length} columns</span>
+                      <span className="preset-card-desc">{preset.description}</span>
+                    </button>
+                  ))}
+                  <button
+                    className="preset-build-own"
+                    onClick={() => setEditing(true)}
+                  >
+                    or build your own
+                  </button>
+                </div>
+              )}
               <div className="thread-empty-footer">Columnar Chat Engine</div>
             </div>
           </ThreadPrimitive.Empty>

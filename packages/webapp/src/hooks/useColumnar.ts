@@ -34,6 +34,7 @@ export interface ColumnarState {
   mode: "cloud" | "local" | null;
   apiKey: string | null;
   setApiKey: (key: string) => void;
+  loadPreset: (config: SessionConfig) => void;
 }
 
 function needsReplay(oldConfig: SessionConfig, newConfig: SessionConfig): boolean {
@@ -562,6 +563,44 @@ export function useColumnar(chatId: string): ColumnarState {
     setMutations([]);
   }, []);
 
+  // ---- loadPreset ----
+  const loadPreset = useCallback(async (config: SessionConfig) => {
+    if (mode === "cloud") {
+      try {
+        const res = await fetch(`/api/config/${chatId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config }),
+        });
+        const data = await res.json() as { ok: boolean; config?: SessionConfig };
+        if (data.ok && data.config) {
+          setAppliedConfig(data.config);
+          setMutations([]);
+        }
+      } catch (err) {
+        console.error("Failed to load preset:", err);
+      }
+    } else if (apiKey) {
+      const [{ createAnthropic }, { createSessionFromConfig }] = await Promise.all([
+        import("@ai-sdk/anthropic"),
+        import("../../shared/flow.js"),
+      ]);
+
+      const provider = createAnthropic({
+        apiKey,
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      });
+      const model = provider("claude-sonnet-4-5-20250929");
+
+      const session = createSessionFromConfig(config, model);
+      sessionRef.current = session;
+      sessionConfigRef.current = config;
+      setAppliedConfig(config);
+      setMutations([]);
+      persist([], config);
+    }
+  }, [mode, chatId, apiKey, persist]);
+
   return {
     steps,
     columnOrder,
@@ -586,5 +625,6 @@ export function useColumnar(chatId: string): ColumnarState {
     mode,
     apiKey,
     setApiKey,
+    loadPreset,
   };
 }
