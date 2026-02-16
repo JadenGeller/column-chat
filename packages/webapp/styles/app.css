@@ -312,10 +312,10 @@ body,
 
 .column-card.expanded {
   flex: 0 0 auto;
-  width: 100%;
+  width: calc(100% - 2 * var(--content-inset));
   max-height: none;
-  margin-left: 64px;
-  margin-right: 64px;
+  margin-left: var(--content-inset);
+  margin-right: var(--content-inset);
 }
 
 .column-card.loading {
