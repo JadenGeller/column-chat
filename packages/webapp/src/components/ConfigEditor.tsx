@@ -172,9 +172,12 @@ function revertEntry(entry: ChangeEntry, mutations: Mutation[], setMutations: (v
 export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
   const [confirmEntries, setConfirmEntries] = useState<ImpactEntry[] | null>(null);
   const [checkedNames, setCheckedNames] = useState<Set<string>>(new Set());
+  const [generatePrompt, setGeneratePrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const newColumnIdRef = useRef<string | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
-  const { draftConfig, appliedConfig, mutations, setMutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft } = state;
+  const { draftConfig, appliedConfig, mutations, setMutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft, generateConfig } = state;
   const summary = changeSummary(mutations, appliedConfig, draftConfig);
 
   // Sync horizontal scroll position across views
@@ -240,6 +243,20 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
       else next.add(name);
       return next;
     });
+  };
+
+  const handleGenerate = async () => {
+    if (!generatePrompt.trim() || isGenerating) return;
+    setIsGenerating(true);
+    setGenerateError(null);
+    try {
+      await generateConfig(generatePrompt.trim());
+      setGeneratePrompt("");
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const allChecked =
@@ -339,7 +356,20 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
                 )}
               </div>
             ) : (
-              <span className="config-status-empty">No changes</span>
+              <textarea
+                className="config-generate-input"
+                placeholder="Describe the columns you want..."
+                value={generatePrompt}
+                onChange={(e) => setGeneratePrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGenerate();
+                  }
+                }}
+                disabled={isGenerating}
+                rows={1}
+              />
             )}
           </div>
           {confirming ? (
@@ -350,7 +380,7 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
             >
               Confirm
             </button>
-          ) : (
+          ) : summary.length > 0 || validationError ? (
             <button
               className="config-apply-btn"
               onClick={handleApply}
@@ -358,8 +388,19 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
             >
               Apply
             </button>
+          ) : (
+            <button
+              className="config-apply-btn"
+              onClick={handleGenerate}
+              disabled={!generatePrompt.trim() || isGenerating}
+            >
+              {isGenerating ? "..." : "Generate"}
+            </button>
           )}
         </div>
+        {generateError && (
+          <div className="config-generate-error">{generateError}</div>
+        )}
         <div className="composer-links">
           {confirming ? (
             <button className="clear-button" onClick={cancelConfirm}>

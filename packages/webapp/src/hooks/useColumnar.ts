@@ -35,6 +35,7 @@ export interface ColumnarState {
   apiKey: string | null;
   setApiKey: (key: string) => void;
   loadPreset: (config: SessionConfig) => void;
+  generateConfig: (prompt: string) => Promise<void>;
 }
 
 function deriveFromConfig(config: SessionConfig) {
@@ -562,6 +563,48 @@ export function useColumnar(chatId: string): ColumnarState {
     setMutations([]);
   }, []);
 
+  // ---- generateConfig ----
+  const generateConfig = useCallback(async (prompt: string) => {
+    const { buildSystemPrompt, buildUserMessage, parseGenerateResponse, configToMutations } =
+      await import("../../shared/generate.js");
+
+    const systemPrompt = buildSystemPrompt();
+    const userMessage = buildUserMessage(prompt, draftConfig);
+
+    let responseText: string;
+
+    if (mode === "cloud") {
+      const res = await fetch("/api/generate-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system: systemPrompt, prompt: userMessage }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || `Server error: ${res.status}`);
+      }
+      const data = await res.json() as { text: string };
+      responseText = data.text;
+    } else {
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
+      const { generateText } = await import("ai");
+      const provider = createAnthropic({
+        apiKey: apiKey!,
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      });
+      const result = await generateText({
+        model: provider("claude-opus-4-6"),
+        system: systemPrompt,
+        prompt: userMessage,
+      });
+      responseText = result.text;
+    }
+
+    const generated = parseGenerateResponse(responseText);
+    const newMutations = configToMutations(generated, appliedConfig);
+    setMutations(newMutations);
+  }, [mode, apiKey, appliedConfig, draftConfig]);
+
   // ---- loadPreset ----
   const loadPreset = useCallback(async (config: SessionConfig) => {
     if (mode === "cloud") {
@@ -625,5 +668,6 @@ export function useColumnar(chatId: string): ColumnarState {
     apiKey,
     setApiKey,
     loadPreset,
+    generateConfig,
   };
 }

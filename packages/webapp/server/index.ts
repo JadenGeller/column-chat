@@ -215,6 +215,37 @@ const app = new Elysia()
       },
     });
   })
+  .post("/api/generate-config", async ({ body }) => {
+    if (!isCloud) return new Response("Not available in local mode", { status: 404 });
+
+    const { system, prompt } = body as { system: string; prompt: string };
+    if (!system || !prompt) {
+      return new Response(JSON.stringify({ error: "Missing system or prompt" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    try {
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
+      const { generateText } = await import("ai");
+
+      const provider = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+      const result = await generateText({
+        model: provider("claude-opus-4-6"),
+        system,
+        prompt,
+      });
+
+      return { text: result.text };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return new Response(JSON.stringify({ error: message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  })
   .get("/api/messages/:chatId", ({ params }) => {
     if (!isCloud) return new Response("Not available in local mode", { status: 404 });
     const chatId = params.chatId;
