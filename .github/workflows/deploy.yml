@@ -27,6 +27,8 @@ jobs:
       - run: bun run vite build
         working-directory: packages/webapp
 
+      - run: cp packages/webapp/dist/index.html packages/webapp/dist/404.html
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: packages/webapp/dist
