@@ -1,4 +1,5 @@
-import { useState, useCallback, type FC } from "react";
+import { useState, useCallback, useContext, createContext, type FC } from "react";
+import { createPortal } from "react-dom";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -10,6 +11,12 @@ import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
 
+const FocusContext = createContext<{
+  focused: string | null;
+  focusColor: string | null;
+  setFocused: (name: string | null, color?: string) => void;
+}>({ focused: null, focusColor: null, setFocused: () => {} });
+
 interface ChatProps {
   state: ColumnarState;
 }
@@ -17,9 +24,17 @@ interface ChatProps {
 export function Chat({ state }: ChatProps) {
   const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setEditing } = state;
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage);
+  const [focused, setFocusedRaw] = useState<string | null>(null);
+  const [focusColor, setFocusColor] = useState<string | null>(null);
+
+  const setFocused = useCallback((name: string | null, color?: string) => {
+    setFocusedRaw(name);
+    setFocusColor(color ?? null);
+  }, []);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <FocusContext.Provider value={{ focused, focusColor, setFocused }}>
       <ThreadPrimitive.Root className="thread-root">
         <ThreadPrimitive.Viewport className="thread-viewport">
           <ThreadPrimitive.Empty>
@@ -72,6 +87,14 @@ export function Chat({ state }: ChatProps) {
           </div>
         </div>
       </ThreadPrimitive.Root>
+      {focused && focusColor && createPortal(
+        <div
+          className="focus-tint"
+          style={{ background: focusColor }}
+        />,
+        document.body
+      )}
+      </FocusContext.Provider>
     </AssistantRuntimeProvider>
   );
 }
@@ -110,16 +133,11 @@ function AssistantMessageContent() {
 }
 
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
-  const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
+  const { focused, setFocused } = useContext(FocusContext);
 
-  const toggle = useCallback((name: string) => {
-    setExpandedSet((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  }, []);
+  const toggle = useCallback((name: string, color?: string) => {
+    setFocused(focused === name ? null : name, color);
+  }, [focused, setFocused]);
 
   try {
     const data = JSON.parse(text) as {
@@ -168,42 +186,44 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       );
     }
 
-    const expanded = data.columnOrder.filter((n) => expandedSet.has(n));
-    const compact = data.columnOrder.filter((n) => !expandedSet.has(n));
+    // Focus mode: show only the focused column, expanded
+    if (focused && data.columnOrder.includes(focused)) {
+      return (
+        <div className="columns-layout">
+          <ColumnCard
+            key={focused}
+            name={focused}
+            value={data.columns[focused]}
+            color={data.columnColors[focused]}
+            prompt={data.columnPrompts[focused]}
+            index={data.columnOrder.indexOf(focused)}
+            status={cardStatus(focused)}
+            dependencies={cardDeps(focused)}
+            expanded
+            onToggle={() => toggle(focused, data.columnColors[focused])}
+          />
+        </div>
+      );
+    }
 
+    // Normal mode: all columns in the grid
     return (
       <div className="columns-layout">
-        {expanded.map((name) => (
-          <ColumnCard
-            key={name}
-            name={name}
-            value={data.columns[name]}
-            color={data.columnColors[name]}
-            prompt={data.columnPrompts[name]}
-            index={data.columnOrder.indexOf(name)}
-            status={cardStatus(name)}
-            dependencies={cardDeps(name)}
-            expanded
-            onToggle={() => toggle(name)}
-          />
-        ))}
-        {compact.length > 0 && (
-          <div className="columns-grid">
-            {compact.map((name) => (
-              <ColumnCard
-                key={name}
-                name={name}
-                value={data.columns[name]}
-                color={data.columnColors[name]}
-                prompt={data.columnPrompts[name]}
-                index={data.columnOrder.indexOf(name)}
-                status={cardStatus(name)}
-                dependencies={cardDeps(name)}
-                onToggle={() => toggle(name)}
-              />
-            ))}
-          </div>
-        )}
+        <div className="columns-grid">
+          {data.columnOrder.map((name) => (
+            <ColumnCard
+              key={name}
+              name={name}
+              value={data.columns[name]}
+              color={data.columnColors[name]}
+              prompt={data.columnPrompts[name]}
+              index={data.columnOrder.indexOf(name)}
+              status={cardStatus(name)}
+              dependencies={cardDeps(name)}
+              onToggle={() => toggle(name, data.columnColors[name])}
+            />
+          ))}
+        </div>
       </div>
     );
   } catch {
