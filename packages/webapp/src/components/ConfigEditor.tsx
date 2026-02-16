@@ -1,31 +1,11 @@
 import { useState } from "react";
 import type { ColumnarState } from "../hooks/useColumnar.js";
-import type { ColumnConfig, SessionConfig } from "../../shared/types.js";
-import { PRESET_COLORS, displayName } from "../../shared/defaults.js";
+import type { ColumnConfig, SessionConfig, Mutation } from "../../shared/types.js";
+import { PRESET_COLORS, displayName, columnId } from "../../shared/defaults.js";
 import { ColumnConfigCard } from "./ColumnConfigCard.js";
 
 interface ConfigEditorProps {
   state: ColumnarState;
-}
-
-const RESERVED_NAMES = new Set(["input", "self"]);
-
-function validateConfig(config: SessionConfig): string | null {
-  const seen = new Set<string>();
-  for (const col of config) {
-    if (!col.name) return "Column name cannot be empty";
-    if (RESERVED_NAMES.has(col.name)) return `"${col.name}" is reserved`;
-    if (seen.has(col.name)) return `Duplicate name: "${col.name}"`;
-    seen.add(col.name);
-
-    for (const ref of col.context) {
-      if (ref.column === "input" || ref.column === "self") continue;
-      if (!seen.has(ref.column)) {
-        return `"${col.name}" references "${ref.column}" which appears after it`;
-      }
-    }
-  }
-  return null;
 }
 
 interface ImpactEntry {
@@ -34,35 +14,43 @@ interface ImpactEntry {
   reason: "direct" | "cascade";
 }
 
+function columnsAffectComputation(a: ColumnConfig, b: ColumnConfig): boolean {
+  return (
+    a.name !== b.name ||
+    a.systemPrompt !== b.systemPrompt ||
+    a.reminder !== b.reminder ||
+    JSON.stringify(a.context) !== JSON.stringify(b.context)
+  );
+}
+
 function computeImpact(
   appliedConfig: SessionConfig,
   draftConfig: SessionConfig,
-  stepCount: number
 ): ImpactEntry[] | null {
-  const appliedByName = new Map(appliedConfig.map((c) => [c.name, c]));
-  const draftByName = new Map(draftConfig.map((c) => [c.name, c]));
-
   const entries: ImpactEntry[] = [];
   const seen = new Set<string>();
+  const appliedById = new Map(appliedConfig.map((c) => [c.id, c]));
+  const draftById = new Map(draftConfig.map((c) => [c.id, c]));
 
+  // Directly removed columns
   const removedNames: string[] = [];
-  for (const name of appliedByName.keys()) {
-    if (!draftByName.has(name)) removedNames.push(name);
+  for (const [id, old] of appliedById) {
+    if (!draftById.has(id)) removedNames.push(old.name);
   }
 
+  // Directly modified columns (computation-affecting fields changed)
   const modifiedNames: string[] = [];
-  for (const [name, newCol] of draftByName) {
-    const oldCol = appliedByName.get(name);
-    if (!oldCol) continue;
-    const changed =
-      oldCol.systemPrompt !== newCol.systemPrompt ||
-      oldCol.reminder !== newCol.reminder ||
-      JSON.stringify(oldCol.context) !== JSON.stringify(newCol.context);
-    if (changed) modifiedNames.push(name);
+  for (const [id, draft] of draftById) {
+    const old = appliedById.get(id);
+    if (!old) continue;
+    if (columnsAffectComputation(old, draft)) {
+      modifiedNames.push(draft.name);
+    }
   }
 
   if (removedNames.length === 0 && modifiedNames.length === 0) return null;
 
+  // Cascade deletions
   const removedSet = new Set(removedNames);
   for (const name of removedNames) {
     if (!seen.has(name)) {
@@ -82,6 +70,7 @@ function computeImpact(
     }
   }
 
+  // Cascade recomputation
   const dirtySet = new Set(modifiedNames);
   for (const name of modifiedNames) {
     if (!seen.has(name)) {
@@ -104,99 +93,49 @@ function computeImpact(
   return entries.length > 0 ? entries : null;
 }
 
+function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draftConfig: SessionConfig): string[] {
+  if (mutations.length === 0) return [];
+
+  const appliedById = new Map(appliedConfig.map((c) => [c.id, c]));
+  const draftById = new Map(draftConfig.map((c) => [c.id, c]));
+  const items: string[] = [];
+
+  for (const [id, col] of draftById) {
+    if (!appliedById.has(id)) items.push(`${displayName(col.name)} added`);
+  }
+  for (const [id, col] of appliedById) {
+    if (!draftById.has(id)) items.push(`${displayName(col.name)} deleted`);
+  }
+  for (const [id, col] of draftById) {
+    const old = appliedById.get(id);
+    if (!old) continue;
+    const diffs: string[] = [];
+    if (old.name !== col.name) diffs.push("name");
+    if (old.systemPrompt !== col.systemPrompt) diffs.push("prompt");
+    if (old.reminder !== col.reminder) diffs.push("reminder");
+    if (old.color !== col.color) diffs.push("color");
+    if (JSON.stringify(old.context) !== JSON.stringify(col.context)) diffs.push("context");
+    if (diffs.length > 0) items.push(`${displayName(col.name)} \u2014 ${diffs.join(", ")}`);
+  }
+
+  const appliedOrder = appliedConfig.map((c) => c.id);
+  const draftOrder = draftConfig.map((c) => c.id);
+  if (
+    appliedOrder.length === draftOrder.length &&
+    appliedOrder.every((id) => draftById.has(id)) &&
+    appliedOrder.some((id, i) => id !== draftOrder[i])
+  ) {
+    items.push("reordered");
+  }
+
+  return items;
+}
+
 export function ConfigEditor({ state }: ConfigEditorProps) {
   const [confirmEntries, setConfirmEntries] = useState<ImpactEntry[] | null>(null);
   const [checkedNames, setCheckedNames] = useState<Set<string>>(new Set());
-  const { draftConfig, appliedConfig, steps, isDirty, isRunning, updateDraft, applyConfig, resetDraft } = state;
-
-  const validationError = validateConfig(draftConfig);
-  const canApply = isDirty && !isRunning && !validationError;
-
-  const changeSummary = (() => {
-    if (!isDirty) return [];
-    const appliedByName = new Map(appliedConfig.map((c) => [c.name, c]));
-    const draftByName = new Map(draftConfig.map((c) => [c.name, c]));
-    const items: string[] = [];
-
-    for (const name of draftByName.keys()) {
-      if (!appliedByName.has(name)) items.push(`${displayName(name)} added`);
-    }
-    for (const name of appliedByName.keys()) {
-      if (!draftByName.has(name)) items.push(`${displayName(name)} deleted`);
-    }
-    for (const [name, col] of draftByName) {
-      const old = appliedByName.get(name);
-      if (!old) continue;
-      const diffs: string[] = [];
-      if (old.systemPrompt !== col.systemPrompt) diffs.push("prompt");
-      if (old.reminder !== col.reminder) diffs.push("reminder");
-      if (old.color !== col.color) diffs.push("color");
-      if (JSON.stringify(old.context) !== JSON.stringify(col.context)) diffs.push("context");
-      if (diffs.length > 0) items.push(`${displayName(name)} \u2014 ${diffs.join(", ")}`);
-    }
-
-    // Detect reorder (same names, different order)
-    const appliedOrder = appliedConfig.map((c) => c.name);
-    const draftOrder = draftConfig.map((c) => c.name);
-    if (
-      appliedOrder.length === draftOrder.length &&
-      appliedOrder.every((n) => draftByName.has(n)) &&
-      appliedOrder.some((n, i) => n !== draftOrder[i])
-    ) {
-      items.push("reordered");
-    }
-
-    return items;
-  })();
-
-  const updateColumn = (index: number, updates: Partial<ColumnConfig>) => {
-    const next = [...draftConfig];
-    const old = next[index];
-    const updated = { ...old, ...updates };
-
-    if (updates.name && updates.name !== old.name) {
-      for (let i = index + 1; i < next.length; i++) {
-        next[i] = {
-          ...next[i],
-          context: next[i].context.map((ref) =>
-            ref.column === old.name ? { ...ref, column: updates.name! } : ref
-          ),
-        };
-      }
-    }
-
-    next[index] = updated;
-    updateDraft(next);
-  };
-
-  const deleteColumn = (index: number) => {
-    const name = draftConfig[index].name;
-    const next = draftConfig.filter((col, i) => {
-      if (i === index) return false;
-      return !col.context.some((ref) => ref.column === name);
-    });
-    updateDraft(next);
-  };
-
-  const moveColumn = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= draftConfig.length) return;
-
-    const next = [...draftConfig];
-    [next[index], next[target]] = [next[target], next[index]];
-
-    for (let i = 0; i < next.length; i++) {
-      const preceding = new Set(next.slice(0, i).map((c) => c.name));
-      next[i] = {
-        ...next[i],
-        context: next[i].context.filter(
-          (ref) => ref.column === "input" || ref.column === "self" || preceding.has(ref.column)
-        ),
-      };
-    }
-
-    updateDraft(next);
-  };
+  const { draftConfig, appliedConfig, mutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft } = state;
+  const summary = changeSummary(mutations, appliedConfig, draftConfig);
 
   const addColumn = () => {
     let n = 1;
@@ -206,36 +145,40 @@ export function ConfigEditor({ state }: ConfigEditorProps) {
     const usedColors = new Set(draftConfig.map((c) => c.color));
     const color = PRESET_COLORS.find((c) => !usedColors.has(c)) ?? PRESET_COLORS[0];
 
-    const newCol: ColumnConfig = {
-      name: `column_${n}`,
-      systemPrompt: "",
-      reminder: "",
-      color,
-      context: [
-        { column: "input", row: "current", count: "all" },
-        { column: "self", row: "previous", count: "all" },
-      ],
-    };
-    updateDraft([...draftConfig, newCol]);
+    dispatch({
+      type: "add",
+      config: {
+        id: columnId(),
+        name: `column_${n}`,
+        systemPrompt: "",
+        reminder: "",
+        color,
+        context: [
+          { column: "input", row: "current", count: "all" },
+          { column: "self", row: "previous", count: "all" },
+        ],
+      },
+    });
   };
 
   const handleApply = () => {
-    const impact = computeImpact(appliedConfig, draftConfig, steps.length);
+    if (!applyConfig) return;
+    const impact = computeImpact(appliedConfig, draftConfig);
     if (impact && steps.length > 0) {
       setConfirmEntries(impact);
       setCheckedNames(new Set());
     } else {
       applyConfig();
-      state.setEditing(false);
     }
   };
 
   const confirmApply = () => {
+    if (!applyConfig) return;
     setConfirmEntries(null);
     setCheckedNames(new Set());
     applyConfig();
-    state.setEditing(false);
   };
+
 
   const cancelConfirm = () => {
     setConfirmEntries(null);
@@ -254,120 +197,113 @@ export function ConfigEditor({ state }: ConfigEditorProps) {
   const allChecked =
     confirmEntries !== null && confirmEntries.every((e) => checkedNames.has(e.name));
 
+  const confirming = confirmEntries !== null;
+
   return (
-    <>
-      <div className="config-editor">
-        <div className="config-editor-row">
-          {draftConfig.map((col, i) => (
-            <ColumnConfigCard
-              key={`${col.name}-${i}`}
-              config={col}
-              index={i}
-              totalCount={draftConfig.length}
-              fullConfig={draftConfig}
-              onUpdate={(updates) => updateColumn(i, updates)}
-              onDelete={() => deleteColumn(i)}
-              onMoveLeft={() => moveColumn(i, -1)}
-              onMoveRight={() => moveColumn(i, 1)}
-            />
-          ))}
+    <div className="config-editor">
+      <div className="config-editor-row">
+        {draftConfig.map((col, i) => (
+          <ColumnConfigCard
+            key={col.id}
+            config={col}
+            index={i}
+            totalCount={draftConfig.length}
+            fullConfig={draftConfig}
+            onUpdate={(changes) => dispatch({ type: "update", id: col.id, changes })}
+            onDelete={() => dispatch({ type: "remove", id: col.id })}
+            onMoveLeft={() => dispatch({ type: "move", id: col.id, direction: -1 })}
+            onMoveRight={() => dispatch({ type: "move", id: col.id, direction: 1 })}
+          />
+        ))}
 
-          <button className="config-add-btn" onClick={addColumn} aria-label="Add column">
-            +
-          </button>
-        </div>
-
-        <div className="config-editor-footer">
-          <div className="config-status-bar">
-            <div className="config-status-box">
-              {validationError ? (
-                <span className="config-editor-error">{validationError}</span>
-              ) : changeSummary.length > 0 ? (
-                <span className="config-status-changes">
-                  {changeSummary.join(" \u00b7 ")}
-                </span>
-              ) : (
-                <span className="config-status-empty">No changes</span>
-              )}
-            </div>
-            <button
-              className="config-apply-btn"
-              onClick={handleApply}
-              disabled={!canApply}
-            >
-              Apply
-            </button>
-          </div>
-          <div className="composer-links">
-            {isDirty ? (
-              <>
-                <button
-                  className="clear-button"
-                  onClick={() => state.setEditing(false)}
-                >
-                  Stash
-                </button>
-                <button
-                  className="clear-button"
-                  onClick={() => { resetDraft(); state.setEditing(false); }}
-                >
-                  Abandon
-                </button>
-              </>
-            ) : (
-              <button
-                className="clear-button"
-                onClick={() => state.setEditing(false)}
-              >
-                Done
-              </button>
-            )}
-          </div>
-        </div>
+        <button className="config-add-btn" onClick={addColumn} aria-label="Add column">
+          +
+        </button>
       </div>
 
-      {confirmEntries && (
-        <div className="confirm-overlay" onClick={cancelConfirm}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="confirm-header">Confirm Changes</div>
-            <div className="confirm-body">
-              <p className="confirm-description">
-                The following columns will be affected across {steps.length} message{steps.length !== 1 ? "s" : ""}:
-              </p>
-              <div className="confirm-entries">
+      <div className="config-editor-footer">
+        <div className="config-status-bar">
+          <div className="config-status-box">
+            {confirming ? (
+              <div className="config-impact">
+                <div className="config-impact-header">
+                  Acknowledge impact across {steps.length} message{steps.length !== 1 ? "s" : ""}:
+                </div>
                 {confirmEntries.map((entry) => (
-                  <label key={entry.name} className="confirm-entry">
+                  <label key={entry.name} className="config-impact-entry">
                     <input
                       type="checkbox"
                       checked={checkedNames.has(entry.name)}
                       onChange={() => toggleCheck(entry.name)}
                     />
-                    <span className="confirm-entry-name">{displayName(entry.name)}</span>
-                    <span className={`confirm-entry-action confirm-action-${entry.action}`}>
+                    <span className="config-impact-name">{displayName(entry.name)}</span>
+                    <span className={`config-impact-action config-impact-${entry.action}`}>
                       {entry.action}
                     </span>
                     {entry.reason === "cascade" && (
-                      <span className="confirm-entry-cascade">(cascade)</span>
+                      <span className="config-impact-cascade">(cascade)</span>
                     )}
                   </label>
                 ))}
               </div>
-            </div>
-            <div className="confirm-footer">
-              <button
-                className="config-apply-btn"
-                onClick={confirmApply}
-                disabled={!allChecked}
-              >
-                Confirm
-              </button>
-              <button className="config-reset-btn" onClick={cancelConfirm}>
-                Cancel
-              </button>
-            </div>
+            ) : validationError ? (
+              <span className="config-editor-error">{validationError}</span>
+            ) : summary.length > 0 ? (
+              <span className="config-status-changes">
+                {summary.join(" \u00b7 ")}
+              </span>
+            ) : (
+              <span className="config-status-empty">No changes</span>
+            )}
           </div>
+          {confirming ? (
+            <button
+              className="config-apply-btn"
+              onClick={confirmApply}
+              disabled={!allChecked || !applyConfig}
+            >
+              Confirm
+            </button>
+          ) : (
+            <button
+              className="config-apply-btn"
+              onClick={handleApply}
+              disabled={!applyConfig}
+            >
+              Apply
+            </button>
+          )}
         </div>
-      )}
-    </>
+        <div className="composer-links">
+          {confirming ? (
+            <button className="clear-button" onClick={cancelConfirm}>
+              Back
+            </button>
+          ) : isDirty ? (
+            <>
+              <button
+                className="clear-button"
+                onClick={() => state.setEditing(false)}
+              >
+                Stash
+              </button>
+              <button
+                className="clear-button"
+                onClick={resetDraft}
+              >
+                Abandon
+              </button>
+            </>
+          ) : (
+            <button
+              className="clear-button"
+              onClick={() => state.setEditing(false)}
+            >
+              Done
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -18,4 +18,8 @@ export function displayName(name: string): string {
     .join(" ");
 }
 
+export function columnId(): string {
+  return crypto.randomUUID();
+}
+
 export const DEFAULT_CONFIG: SessionConfig = [];

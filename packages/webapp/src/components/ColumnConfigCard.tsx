@@ -24,7 +24,7 @@ export function ColumnConfigCard({
   onMoveRight,
 }: ColumnConfigCardProps) {
   const availableColumns = fullConfig
-    .slice(0, index)
+    .filter((_, i) => i !== index)
     .map((c) => c.name);
 
   const handleDelete = () => {
@@ -105,12 +105,15 @@ export function ColumnConfigCard({
           </div>
 
           <div className="config-field">
-            <label className="config-label">Reminder</label>
+            <label className="config-label">
+              System reminder
+              <span className="config-label-hint" data-tip="Injected as the final message before the model responds. Use for formatting rules, output constraints, etc.">?</span>
+            </label>
             <input
               className="config-input"
               value={config.reminder}
               onChange={(e) => onUpdate({ reminder: e.target.value })}
-              placeholder="Optional reminder instruction"
+              placeholder=""
             />
           </div>
 

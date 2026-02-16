@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { SessionConfig, Capabilities } from "../../shared/types.js";
+import type { SessionConfig, Capabilities, Mutation } from "../../shared/types.js";
+import { overlay, validateConfig } from "../../shared/types.js";
 
 export interface Step {
   input: string;
@@ -20,15 +21,33 @@ export interface ColumnarState {
   clearChat: () => void;
   appliedConfig: SessionConfig;
   draftConfig: SessionConfig;
+  mutations: Mutation[];
   isDirty: boolean;
-  updateDraft: (config: SessionConfig) => void;
-  applyConfig: () => Promise<void>;
+  validationError: string | null;
+  dispatch: (mutation: Mutation) => void;
+  applyConfig: (() => void) | null;
   resetDraft: () => void;
   editing: boolean;
   setEditing: (editing: boolean) => void;
   mode: "cloud" | "local" | null;
   apiKey: string | null;
   setApiKey: (key: string) => void;
+}
+
+function needsReplay(oldConfig: SessionConfig, newConfig: SessionConfig): boolean {
+  if (oldConfig.length !== newConfig.length) return true;
+  const oldById = new Map(oldConfig.map((c) => [c.id, c]));
+  for (const col of newConfig) {
+    const old = oldById.get(col.id);
+    if (!old) return true;
+    if (
+      old.name !== col.name ||
+      old.systemPrompt !== col.systemPrompt ||
+      old.reminder !== col.reminder ||
+      JSON.stringify(old.context) !== JSON.stringify(col.context)
+    ) return true;
+  }
+  return false;
 }
 
 function deriveFromConfig(config: SessionConfig) {
@@ -122,7 +141,7 @@ export function useColumnar(chatId: string): ColumnarState {
   const [apiKey, setApiKeyState] = useState<string | null>(loadApiKey());
   const [steps, setSteps] = useState<Step[]>([]);
   const [appliedConfig, setAppliedConfig] = useState<SessionConfig>([]);
-  const [draftConfig, setDraftConfig] = useState<SessionConfig>([]);
+  const [mutations, setMutations] = useState<Mutation[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [editing, setEditing] = useState(false);
 
@@ -130,15 +149,19 @@ export function useColumnar(chatId: string): ColumnarState {
   const sessionRef = useRef<LocalSession | null>(null);
   const sessionConfigRef = useRef<SessionConfig>([]);
 
+  const draftConfig = useMemo(
+    () => overlay(appliedConfig, mutations),
+    [appliedConfig, mutations]
+  );
+
   const { columnOrder, columnColors, columnPrompts, columnDeps } = useMemo(
     () => deriveFromConfig(appliedConfig),
     [appliedConfig]
   );
 
-  const isDirty = useMemo(
-    () => JSON.stringify(appliedConfig) !== JSON.stringify(draftConfig),
-    [appliedConfig, draftConfig]
-  );
+  const isDirty = mutations.length > 0;
+  const validationError = useMemo(() => validateConfig(draftConfig), [draftConfig]);
+  const canApply = isDirty && !isRunning && !validationError && (mode === "cloud" || !!apiKey);
 
   const setApiKey = useCallback((key: string) => {
     saveApiKey(key);
@@ -165,7 +188,7 @@ export function useColumnar(chatId: string): ColumnarState {
       }) => {
         setSteps(data.steps.map((s) => ({ ...s, computing: new Set<string>(), isRunning: false })));
         setAppliedConfig(data.config);
-        setDraftConfig(data.config);
+        setMutations([]);
       })
       .catch(console.error);
   }, [mode, chatId]);
@@ -215,7 +238,7 @@ export function useColumnar(chatId: string): ColumnarState {
         })));
       }
       setAppliedConfig(config);
-      setDraftConfig(config);
+      setMutations([]);
     })();
 
     return () => { cancelled = true; };
@@ -353,12 +376,12 @@ export function useColumnar(chatId: string): ColumnarState {
     window.open("/", "_blank");
   }, []);
 
-  const updateDraft = useCallback((config: SessionConfig) => {
-    setDraftConfig(config);
+  const dispatch = useCallback((mutation: Mutation) => {
+    setMutations((prev) => [...prev, mutation]);
   }, []);
 
   // ---- applyConfig ----
-  const applyConfig = useCallback(async () => {
+  const _applyConfig = useCallback(async () => {
     if (mode === "cloud") {
       try {
         const res = await fetch(`/api/config/${chatId}`, {
@@ -373,7 +396,8 @@ export function useColumnar(chatId: string): ColumnarState {
           const data = await res.json() as { ok: boolean; config?: SessionConfig; error?: string };
           if (data.ok && data.config) {
             setAppliedConfig(data.config);
-            setDraftConfig(data.config);
+            setMutations([]);
+            setEditing(false);
           }
           return;
         }
@@ -384,7 +408,8 @@ export function useColumnar(chatId: string): ColumnarState {
           (data) => {
             if (data.kind === "init") {
               setAppliedConfig(data.config);
-              setDraftConfig(data.config);
+              setMutations([]);
+              setEditing(false);
               setSteps(
                 data.steps.map((s: any) => ({
                   ...s,
@@ -430,28 +455,44 @@ export function useColumnar(chatId: string): ColumnarState {
         setIsRunning(false);
       }
     } else {
-      // Local mode: recreate session with new config, replay inputs
-      if (!apiKey) return;
+      // Local mode — canApply guarantees apiKey is set
+      const newConfig = draftConfig;
 
+      // If no computation-affecting fields changed, just update config without replay
+      if (!needsReplay(appliedConfig, newConfig)) {
+        setAppliedConfig(newConfig);
+        setMutations([]);
+        setEditing(false);
+        persist(steps, newConfig);
+        return;
+      }
+
+      // Recreate session with new config, replay inputs
       const [{ createAnthropic }, { createSessionFromConfig }] = await Promise.all([
         import("@ai-sdk/anthropic"),
         import("../../shared/flow.js"),
       ]);
 
       const provider = createAnthropic({
-        apiKey,
+        apiKey: apiKey!,
         headers: { "anthropic-dangerous-direct-browser-access": "true" },
       });
       const model = provider("claude-sonnet-4-5-20250929");
 
-      const newConfig = draftConfig;
       const savedInputs = steps.map((s) => s.input);
-      const freshSession = createSessionFromConfig(newConfig, model);
+      let freshSession;
+      try {
+        freshSession = createSessionFromConfig(newConfig, model);
+      } catch (err) {
+        console.error("Failed to create session from config:", err);
+        return;
+      }
 
       sessionRef.current = freshSession;
       sessionConfigRef.current = newConfig;
       setAppliedConfig(newConfig);
-      setDraftConfig(newConfig);
+      setMutations([]);
+      setEditing(false);
 
       if (savedInputs.length === 0) {
         persist([], newConfig);
@@ -509,11 +550,13 @@ export function useColumnar(chatId: string): ColumnarState {
       }
       setIsRunning(false);
     }
-  }, [mode, draftConfig, chatId, apiKey, steps, persist]);
+  }, [mode, appliedConfig, draftConfig, chatId, apiKey, steps, persist]);
+
+  const applyConfig = canApply ? () => { _applyConfig(); } : null;
 
   const resetDraft = useCallback(() => {
-    setDraftConfig(appliedConfig);
-  }, [appliedConfig]);
+    setMutations([]);
+  }, []);
 
   return {
     steps,
@@ -526,8 +569,10 @@ export function useColumnar(chatId: string): ColumnarState {
     clearChat,
     appliedConfig,
     draftConfig,
+    mutations,
     isDirty,
-    updateDraft,
+    validationError,
+    dispatch,
     applyConfig,
     resetDraft,
     editing,

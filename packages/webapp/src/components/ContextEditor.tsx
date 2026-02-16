@@ -8,75 +8,70 @@ interface ContextEditorProps {
 }
 
 export function ContextEditor({ context, availableColumns, onChange }: ContextEditorProps) {
-  const columnOptions = ["input", "self", ...availableColumns];
+  const allOptions = ["input", "self", ...availableColumns];
+  const refByColumn = new Map(context.map((ref) => [ref.column, ref]));
 
-  const updateRef = (index: number, updates: Partial<ColumnContextRef>) => {
-    const next = context.map((ref, i) =>
-      i === index ? { ...ref, ...updates } : ref
-    );
-    onChange(next);
+  const toggle = (col: string) => {
+    if (refByColumn.has(col)) {
+      onChange(context.filter((ref) => ref.column !== col));
+    } else {
+      const defaults: ColumnContextRef = col === "self"
+        ? { column: col, row: "previous", count: "all" }
+        : { column: col, row: "current", count: "all" };
+      onChange([...context, defaults]);
+    }
   };
 
-  const removeRef = (index: number) => {
-    onChange(context.filter((_, i) => i !== index));
-  };
-
-  const addRef = () => {
-    onChange([...context, { column: "input", row: "current", count: "all" }]);
+  const updateRef = (col: string, updates: Partial<ColumnContextRef>) => {
+    onChange(context.map((ref) => ref.column === col ? { ...ref, ...updates } : ref));
   };
 
   return (
     <div className="context-editor">
-      <label className="context-editor-label">Context Dependencies</label>
-      {context.map((ref, i) => (
-        <div key={i} className="context-row">
-          <select
-            className="context-select"
-            value={ref.column}
-            onChange={(e) => {
-              const col = e.target.value;
-              if (col === "self") {
-                updateRef(i, { column: col, row: "previous" });
-              } else {
-                updateRef(i, { column: col });
-              }
-            }}
-          >
-            {columnOptions.map((col) => (
-              <option key={col} value={col}>
-                {col === "self" ? "self" : displayName(col)}
-              </option>
-            ))}
-          </select>
-          <select
-            className="context-select context-mode"
-            value={ref.row}
-            onChange={(e) => updateRef(i, { row: e.target.value as "current" | "previous" })}
-            disabled={ref.column === "self"}
-          >
-            <option value="current">current</option>
-            <option value="previous">previous</option>
-          </select>
-          <select
-            className="context-select context-mode"
-            value={ref.count}
-            onChange={(e) => updateRef(i, { count: e.target.value as "single" | "all" })}
-          >
-            <option value="all">all</option>
-            <option value="single">single</option>
-          </select>
-          <button
-            className="context-remove"
-            onClick={() => removeRef(i)}
-            aria-label="Remove dependency"
-          >
-            x
-          </button>
-        </div>
-      ))}
-      <button className="context-add" onClick={addRef}>
-        + Add dependency
-      </button>
+      <label className="context-editor-label">Dependencies</label>
+      {allOptions.map((col) => {
+        const ref = refByColumn.get(col);
+        const checked = !!ref;
+        const isSelf = col === "self";
+
+        return (
+          <label key={col} className={`context-row ${checked ? "" : "context-row-unchecked"}`}>
+            <input
+              type="checkbox"
+              className="context-checkbox"
+              checked={checked}
+              onChange={() => toggle(col)}
+            />
+            <span className="context-col-name">
+              {isSelf ? "self" : displayName(col)}
+            </span>
+            {checked && (
+              <>
+                {isSelf ? (
+                  <span className="context-fixed">previous</span>
+                ) : (
+                  <select
+                    className="context-select context-mode"
+                    value={ref!.row}
+                    onChange={(e) => updateRef(col, { row: e.target.value as "current" | "previous" })}
+                  >
+                    <option value="current">current</option>
+                    <option value="previous">previous</option>
+                  </select>
+                )}
+                <select
+                  className="context-select context-mode"
+                  value={ref!.count}
+                  onChange={(e) => updateRef(col, { count: e.target.value as "single" | "all" })}
+                >
+                  <option value="all">all</option>
+                  <option value="single">single</option>
+                </select>
+              </>
+            )}
+          </label>
+        );
+      })}
     </div>
   );
 }

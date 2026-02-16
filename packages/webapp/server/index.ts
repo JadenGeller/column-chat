@@ -156,7 +156,7 @@ const app = new Elysia()
 
     const diff = diffConfigs(entry.config, config);
     const hasComputation =
-      diff.removed.length > 0 || diff.modified.length > 0 || diff.added.length > 0;
+      diff.removed.length > 0 || diff.modified.length > 0 || diff.added.length > 0 || diff.renamed.length > 0;
 
     // If no structural changes (color-only or identical), apply immediately
     if (!hasComputation) {

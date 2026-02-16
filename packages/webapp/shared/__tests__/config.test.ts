@@ -8,6 +8,7 @@ function col(
   overrides: Partial<ColumnConfig> = {},
 ): ColumnConfig {
   return {
+    id: `id-${name}`,
     name,
     systemPrompt: `prompt-${name}`,
     reminder: "",
@@ -107,5 +108,31 @@ describe("diffConfigs", () => {
     expect(diff.added).toEqual([col("d")]);
     expect(diff.modified.length).toBe(1);
     expect(diff.modified[0].name).toBe("a");
+  });
+
+  test("detects rename as renamed, not remove+add", () => {
+    const old: SessionConfig = [col("a")];
+    const next: SessionConfig = [col("a_renamed", ["input"], { id: "id-a" })];
+    const diff = diffConfigs(old, next);
+
+    expect(diff.removed).toEqual([]);
+    expect(diff.added).toEqual([]);
+    expect(diff.modified).toEqual([]);
+    expect(diff.renamed.length).toBe(1);
+    expect(diff.renamed[0].oldName).toBe("a");
+    expect(diff.renamed[0].newName).toBe("a_renamed");
+  });
+
+  test("rename with other changes goes into renamed", () => {
+    const old: SessionConfig = [col("a")];
+    const next: SessionConfig = [col("a_new", ["input"], { id: "id-a", systemPrompt: "changed" })];
+    const diff = diffConfigs(old, next);
+
+    expect(diff.removed).toEqual([]);
+    expect(diff.added).toEqual([]);
+    expect(diff.modified).toEqual([]);
+    expect(diff.renamed.length).toBe(1);
+    expect(diff.renamed[0].oldName).toBe("a");
+    expect(diff.renamed[0].newName).toBe("a_new");
   });
 });

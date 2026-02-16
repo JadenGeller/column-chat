@@ -11,6 +11,7 @@ function col(
   overrides: Partial<ColumnConfig> = {},
 ): ColumnConfig {
   return {
+    id: `id-${name}`,
     name,
     systemPrompt: `prompt-${name}`,
     reminder: "",

@@ -616,24 +616,33 @@ describe("replaceColumn", () => {
     ]);
   });
 
-  test("throws if name mismatch", () => {
+  test("allows rename via replaceColumn", async () => {
     const user = source("user");
     const a = column("a", {
       context: [
         { column: user, row: "current", count: "single" },
       ],
-      compute: async () => "",
+      compute: async () => "val-a",
     });
     const f = flow(a);
 
-    const b = column("b", {
+    user.push("hello");
+    await f.run();
+    expect(f.get("a", 0)).toBe("val-a");
+
+    const aRenamed = column("a_renamed", {
       context: [
         { column: user, row: "current", count: "single" },
       ],
-      compute: async () => "",
+      compute: async () => "val-renamed",
     });
 
-    expect(() => f.replaceColumn("a", b)).toThrow('must match');
+    f.replaceColumn("a", aRenamed);
+
+    // Old name gone, new name accessible after recompute
+    expect(f.get("a", 0)).toBeUndefined();
+    await f.run();
+    expect(f.get("a_renamed", 0)).toBe("val-renamed");
   });
 });
 

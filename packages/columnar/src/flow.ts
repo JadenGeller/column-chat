@@ -327,9 +327,6 @@ export function flow(...leaves: Column[]): Flow {
     const oldCol = nameMap.get(name);
     if (!oldCol) throw new Error(`Column "${name}" not found in flow`);
     if (oldCol.kind === "source") throw new Error(`Cannot replace source column "${name}"`);
-    if (newCol.name !== name) {
-      throw new Error(`Replacement column name "${newCol.name}" must match "${name}"`);
-    }
 
     // Compute transitive dependents of old column (excluding itself)
     const depNames = dependentsOf(name);
@@ -340,7 +337,8 @@ export function flow(...leaves: Column[]): Flow {
     allSet.add(newCol);
     const idx = derived.indexOf(oldCol as DerivedColumn);
     derived[idx] = newCol;
-    nameMap.set(name, newCol);
+    nameMap.delete(name);
+    nameMap.set(newCol.name, newCol);
 
     // Fix up context: dependent columns' deps that point to oldCol must point to newCol
     for (const depCol of deps) {
