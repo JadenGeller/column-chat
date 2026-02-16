@@ -1,1 +1,1 @@
-export { createFileSystemStorage } from "./storage.js";
+export { fileSystemStorage } from "./storage.js";

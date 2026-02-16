@@ -22,6 +22,9 @@ export interface ColumnStorage {
   readonly length: number;
 }
 
+// A factory that returns a ColumnStorage for a given column name
+export type StorageProvider = (name: string) => ColumnStorage;
+
 // Events yielded by run()
 export type FlowEvent = {
   column: string;

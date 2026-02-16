@@ -2,24 +2,46 @@ import type {
   WindowMode,
   ColumnView,
   ColumnStorage,
+  StorageProvider,
   SourceColumn,
   DerivedColumn,
   ComputeFunction,
 } from "./types.js";
 import { SELF_MARKER } from "./types.js";
 
-export function createInMemoryStorage(): ColumnStorage {
-  const values: string[] = [];
-  return {
-    get(step: number): string | undefined {
-      return step < values.length ? values[step] : undefined;
-    },
-    push(value: string): void {
-      values.push(value);
-    },
-    get length(): number {
-      return values.length;
-    },
+export function inMemoryStorage(
+  store: Record<string, string>[] = []
+): StorageProvider {
+  return (name: string): ColumnStorage => {
+    function computeLength(): number {
+      let n = 0;
+      while (n < store.length && store[n]?.[name] !== undefined) {
+        n++;
+      }
+      return n;
+    }
+
+    let cachedLength: number | null = null;
+
+    return {
+      get(step: number): string | undefined {
+        return store[step]?.[name];
+      },
+      push(value: string): void {
+        const step = cachedLength ?? computeLength();
+        while (store.length <= step) {
+          store.push({});
+        }
+        store[step][name] = value;
+        cachedLength = step + 1;
+      },
+      get length(): number {
+        if (cachedLength === null) {
+          cachedLength = computeLength();
+        }
+        return cachedLength;
+      },
+    };
   };
 }
 
@@ -47,9 +69,9 @@ function createView(
 
 export function source(
   name: string,
-  options?: { storage?: ColumnStorage }
+  options?: { storage?: StorageProvider }
 ): SourceColumn {
-  const storage = options?.storage ?? createInMemoryStorage();
+  const storage = (options?.storage ?? inMemoryStorage())(name);
   const col = {
     ...createView(null as any, { kind: "all" }, name),
     kind: "source" as const,
@@ -76,9 +98,9 @@ export function source(
 
 export function column(
   name: string,
-  options: { context: ColumnView[]; compute: ComputeFunction; storage?: ColumnStorage }
+  options: { context: ColumnView[]; compute: ComputeFunction; storage?: StorageProvider }
 ): DerivedColumn {
-  const storage = options.storage ?? createInMemoryStorage();
+  const storage = (options.storage ?? inMemoryStorage())(name);
   const col = {
     ...createView(null as any, { kind: "all" }, name),
     kind: "derived" as const,

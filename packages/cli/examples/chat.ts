@@ -1,19 +1,17 @@
 import { source, column, self, flow, prompt } from "columnar";
-import { createFileSystemStorage } from "columnar-cli";
+import { fileSystemStorage } from "columnar-cli";
 import { anthropic } from "@ai-sdk/anthropic";
-import { join } from "node:path";
 
 const dataDir = process.argv[2] ?? "./data";
 const model = anthropic("claude-sonnet-4-5-20250929");
+const storage = fileSystemStorage(dataDir);
 
-const user = source("user", {
-  storage: createFileSystemStorage(join(dataDir, "user")),
-});
+const user = source("user", { storage });
 
 const assistant = column("assistant", {
   context: [user, self],
   compute: prompt(model, "You are a helpful assistant. Keep responses brief."),
-  storage: createFileSystemStorage(join(dataDir, "assistant")),
+  storage,
 });
 
 const f = flow(assistant);
