@@ -32,8 +32,8 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
     if (!rect) return;
     setTooltipStyle({
       position: "fixed",
-      top: rect.bottom + 8,
-      left: rect.left,
+      bottom: window.innerHeight - rect.bottom,
+      left: rect.right + 8,
     });
   }, []);
 
@@ -56,25 +56,23 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
         aria-label={expanded ? "Collapse" : "Expand"}
       >
         <span className="column-card-bar-label">{label}</span>
+        {prompt && (
+          <span
+            ref={buttonRef}
+            className="prompt-hint-button"
+            onMouseEnter={(e) => { e.stopPropagation(); showTooltip(); }}
+            onMouseLeave={(e) => { e.stopPropagation(); hideTooltip(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              tooltipStyle ? hideTooltip() : showTooltip();
+            }}
+            aria-label="View system prompt"
+          >
+            ?
+          </span>
+        )}
       </button>
       <div className="column-card-content">
-        {prompt && (
-          <div className="column-card-toolbar">
-            <button
-              ref={buttonRef}
-              className="prompt-hint-button"
-              onMouseEnter={showTooltip}
-              onMouseLeave={hideTooltip}
-              onClick={(e) => {
-                e.stopPropagation();
-                tooltipStyle ? hideTooltip() : showTooltip();
-              }}
-              aria-label="View system prompt"
-            >
-              ?
-            </button>
-          </div>
-        )}
         <div className="column-card-body">
           {status !== "done" && value === undefined && dependencies && dependencies.length > 0 ? (
             <div className="column-card-waiting">

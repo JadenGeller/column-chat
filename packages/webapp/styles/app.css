@@ -415,7 +415,7 @@ body,
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 0;
   width: 40px;
   flex-shrink: 0;
@@ -453,34 +453,27 @@ body,
   overflow: hidden;
 }
 
-/* Toolbar with help button */
-.column-card-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 6px 8px 0;
-}
-
-/* Help button — thick-bordered square with "?" */
+/* Help button — inside the colored sidebar bar */
 .prompt-hint-button {
   width: 22px;
   height: 22px;
-  border: 2px solid var(--black);
+  border: none;
   background: none;
-  color: var(--black);
+  color: var(--bg);
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.1s, color 0.1s;
+  opacity: 0.7;
+  transition: opacity 0.1s;
 }
 
 .prompt-hint-button:hover {
-  background: var(--black);
-  color: var(--cream);
+  opacity: 1;
 }
 
 /* Tooltip */
