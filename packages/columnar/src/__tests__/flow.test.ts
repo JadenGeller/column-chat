@@ -22,7 +22,7 @@ describe("flow", () => {
     }
 
     expect(events).toEqual([
-      { column: "assistant", step: 0, value: "echo: <user>\nHello\n</user>" },
+      { kind: "value", column: "assistant", step: 0, value: "echo: <user>\nHello\n</user>" },
     ]);
 
     expect(f.get("assistant", 0)).toBe("echo: <user>\nHello\n</user>");
@@ -89,8 +89,8 @@ describe("flow", () => {
 
     // steelman computes first, then critic
     expect(events).toEqual([
-      { column: "steelman", step: 0, value: "pro: <user>\nRust is good\n</user>" },
-      { column: "critic", step: 0, value: "con: <steelman>\npro: <user>\nRust is good\n</user>\n</steelman>" },
+      { kind: "value", column: "steelman", step: 0, value: "pro: <user>\nRust is good\n</user>" },
+      { kind: "value", column: "critic", step: 0, value: "con: <steelman>\npro: <user>\nRust is good\n</user>\n</steelman>" },
     ]);
   });
 
@@ -213,5 +213,136 @@ describe("flow", () => {
 
     // Multiple inputs => XML wrapping
     expect(f.get("combined", 0)).toBe("<a>\nx\n</a>\n\n<b>\ny\n</b>");
+  });
+});
+
+describe("streaming", () => {
+  test("streaming compute yields delta then value events", async () => {
+    const user = source("user");
+    const assistant = column("assistant", {
+      context: [user.latest],
+      compute: async function* () {
+        yield "Hello";
+        yield " ";
+        yield "World";
+      },
+    });
+
+    const f = flow(assistant);
+    user.push("hi");
+
+    const events: any[] = [];
+    for await (const e of f.run()) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([
+      { kind: "delta", column: "assistant", step: 0, delta: "Hello" },
+      { kind: "delta", column: "assistant", step: 0, delta: " " },
+      { kind: "delta", column: "assistant", step: 0, delta: "World" },
+      { kind: "value", column: "assistant", step: 0, value: "Hello World" },
+    ]);
+  });
+
+  test("accumulated value stored correctly", async () => {
+    const user = source("user");
+    const assistant = column("assistant", {
+      context: [user.latest],
+      compute: async function* () {
+        yield "a";
+        yield "b";
+        yield "c";
+      },
+    });
+
+    const f = flow(assistant);
+    user.push("hi");
+    await f.run();
+
+    expect(f.get("assistant", 0)).toBe("abc");
+  });
+
+  test("mixed streaming and non-streaming columns run in parallel", async () => {
+    const user = source("user");
+    const streamer = column("streamer", {
+      context: [user.latest],
+      compute: async function* () {
+        yield "s1";
+        yield "s2";
+      },
+    });
+    const plain = column("plain", {
+      context: [user.latest],
+      compute: async () => "plain-value",
+    });
+
+    const f = flow(streamer, plain);
+    user.push("hi");
+
+    const events: any[] = [];
+    for await (const e of f.run()) {
+      events.push(e);
+    }
+
+    // Parallel execution — per-column order is preserved but interleaving is non-deterministic
+    const streamerEvents = events.filter((e: any) => e.column === "streamer");
+    const plainEvents = events.filter((e: any) => e.column === "plain");
+
+    expect(streamerEvents).toEqual([
+      { kind: "delta", column: "streamer", step: 0, delta: "s1" },
+      { kind: "delta", column: "streamer", step: 0, delta: "s2" },
+      { kind: "value", column: "streamer", step: 0, value: "s1s2" },
+    ]);
+    expect(plainEvents).toEqual([
+      { kind: "value", column: "plain", step: 0, value: "plain-value" },
+    ]);
+  });
+
+  test("await f.run() drains streaming silently", async () => {
+    const user = source("user");
+    let yieldCount = 0;
+    const assistant = column("assistant", {
+      context: [user.latest],
+      compute: async function* () {
+        yieldCount++;
+        yield "tok1";
+        yieldCount++;
+        yield "tok2";
+      },
+    });
+
+    const f = flow(assistant);
+    user.push("hi");
+    await f.run();
+
+    expect(yieldCount).toBe(2);
+    expect(f.get("assistant", 0)).toBe("tok1tok2");
+  });
+
+  test("addColumn backfill with streaming compute", async () => {
+    const user = source("user");
+    const plain = column("plain", {
+      context: [user.latest],
+      compute: async () => "done",
+    });
+
+    const f = flow(plain);
+    user.push("step0");
+    user.push("step1");
+    await f.run();
+
+    const streamer = column("streamer", {
+      context: [user.latest],
+      compute: async function* ({ messages }) {
+        const text = messages[0].content;
+        yield "got:";
+        yield text;
+      },
+    });
+
+    await f.addColumn(streamer);
+
+    expect(f.get("streamer", 0)).toBe("got:<user>\nstep0\n</user>");
+    expect(f.get("streamer", 1)).toBe("got:<user>\nstep1\n</user>");
   });
 });

@@ -88,21 +88,21 @@ describe("fileSystemStorage", () => {
     user.push("hello");
     user.push("world");
 
-    const events: { column: string; step: number; value: string }[] = [];
+    const events: any[] = [];
     for await (const event of f.run()) {
       events.push(event);
     }
 
     expect(events).toHaveLength(2);
-    expect(events[0]).toEqual({ column: "assistant", step: 0, value: "echo: hello" });
-    expect(events[1]).toEqual({ column: "assistant", step: 1, value: "echo: world" });
+    expect(events[0]).toEqual({ kind: "value", column: "assistant", step: 0, value: "echo: <user>\nhello\n</user>" });
+    expect(events[1]).toEqual({ kind: "value", column: "assistant", step: 1, value: "echo: <user>\nworld\n</user>" });
 
     // Verify files on disk via a fresh provider
     const verify = fileSystemStorage(baseDir);
     const assistantStorage = verify("assistant");
     expect(assistantStorage.length).toBe(2);
-    expect(assistantStorage.get(0)).toBe("echo: hello");
-    expect(assistantStorage.get(1)).toBe("echo: world");
+    expect(assistantStorage.get(0)).toBe("echo: <user>\nhello\n</user>");
+    expect(assistantStorage.get(1)).toBe("echo: <user>\nworld\n</user>");
 
     rmSync(baseDir, { recursive: true, force: true });
   });
@@ -124,13 +124,13 @@ describe("fileSystemStorage", () => {
     const f = flow(assistant);
     user.push("hello");
 
-    const firstEvents: { column: string; step: number; value: string }[] = [];
+    const firstEvents: any[] = [];
     for await (const event of f.run()) {
       firstEvents.push(event);
     }
     expect(firstEvents).toHaveLength(1);
 
-    const secondEvents: { column: string; step: number; value: string }[] = [];
+    const secondEvents: any[] = [];
     for await (const event of f.run()) {
       secondEvents.push(event);
     }

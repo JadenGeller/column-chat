@@ -8,6 +8,53 @@ import type {
 import { isSelfView } from "./column.js";
 import { assembleMessages, resolveContextInputs } from "./context.js";
 
+function isAsyncIterable(value: unknown): value is AsyncIterable<string> {
+  return (
+    value != null &&
+    typeof value === "object" &&
+    Symbol.asyncIterator in (value as object)
+  );
+}
+
+async function* computeColumn(col: DerivedColumn, step: number): AsyncGenerator<FlowEvent> {
+  let inputs = resolveContextInputs(col.context, col, step);
+  if (col.transform) inputs = col.transform(inputs, step);
+  const messages = assembleMessages(inputs);
+  const result = col.compute({ messages });
+
+  if (isAsyncIterable(result)) {
+    let accumulated = "";
+    for await (const delta of result) {
+      accumulated += delta;
+      yield { kind: "delta" as const, column: col._name, step, delta };
+    }
+    col.storage.push(accumulated);
+    yield { kind: "value" as const, column: col._name, step, value: accumulated };
+  } else {
+    const value = await result;
+    col.storage.push(value);
+    yield { kind: "value" as const, column: col._name, step, value };
+  }
+}
+
+async function* merge<T>(iterables: AsyncIterable<T>[]): AsyncGenerator<T> {
+  const iterators = iterables.map(it => it[Symbol.asyncIterator]());
+  const pending = new Map<number, Promise<{ index: number; result: IteratorResult<T> }>>();
+
+  for (let i = 0; i < iterators.length; i++) {
+    pending.set(i, iterators[i].next().then(result => ({ index: i, result })));
+  }
+
+  while (pending.size > 0) {
+    const { index, result } = await Promise.race(pending.values());
+    pending.delete(index);
+    if (!result.done) {
+      yield result.value;
+      pending.set(index, iterators[index].next().then(result => ({ index, result })));
+    }
+  }
+}
+
 export interface Flow {
   run(): AsyncIterable<FlowEvent> & PromiseLike<void>;
   get(name: string, step: number): string | undefined;
@@ -47,11 +94,11 @@ function discoverDAG(leaves: Column[]): {
   return { sources, derived, all: [...visited] };
 }
 
-// Topological sort using Kahn's algorithm
-function topoSort(derived: DerivedColumn[], allColumns: Set<Column>): DerivedColumn[] {
-  // Build adjacency: for each derived column, find its non-self dependencies that are also derived
+// Topological sort into levels using Kahn's algorithm.
+// Columns within the same level have no dependencies on each other and can run in parallel.
+function topoSort(derived: DerivedColumn[], allColumns: Set<Column>): DerivedColumn[][] {
   const inDegree = new Map<DerivedColumn, number>();
-  const dependents = new Map<Column, DerivedColumn[]>(); // column -> columns that depend on it
+  const dependents = new Map<Column, DerivedColumn[]>();
 
   for (const col of derived) {
     let deg = 0;
@@ -73,24 +120,30 @@ function topoSort(derived: DerivedColumn[], allColumns: Set<Column>): DerivedCol
     if (deg === 0) queue.push(col);
   }
 
-  const sorted: DerivedColumn[] = [];
-  while (queue.length > 0) {
-    const col = queue.shift()!;
-    sorted.push(col);
+  const levels: DerivedColumn[][] = [];
+  let processed = 0;
 
-    const deps = dependents.get(col) || [];
-    for (const dep of deps) {
-      const newDeg = inDegree.get(dep)! - 1;
-      inDegree.set(dep, newDeg);
-      if (newDeg === 0) queue.push(dep);
+  while (queue.length > 0) {
+    const level = [...queue];
+    queue.length = 0;
+    levels.push(level);
+    processed += level.length;
+
+    for (const col of level) {
+      const deps = dependents.get(col) || [];
+      for (const dep of deps) {
+        const newDeg = inDegree.get(dep)! - 1;
+        inDegree.set(dep, newDeg);
+        if (newDeg === 0) queue.push(dep);
+      }
     }
   }
 
-  if (sorted.length !== derived.length) {
+  if (processed !== derived.length) {
     throw new Error("Cycle detected in column dependencies");
   }
 
-  return sorted;
+  return levels;
 }
 
 // Build a name -> column map
@@ -108,7 +161,7 @@ function buildNameMap(columns: Column[]): Map<string, Column> {
 export function flow(...leaves: Column[]): Flow {
   const { sources, derived, all } = discoverDAG(leaves);
   const allSet = new Set(all);
-  let sortedDerived = topoSort(derived, allSet);
+  let sortedLevels = topoSort(derived, allSet);
   const nameMap = buildNameMap(all);
 
   // Track how many steps have been computed
@@ -124,17 +177,15 @@ export function flow(...leaves: Column[]): Flow {
 
         // Process new steps
         for (let step = computedSteps; step < maxSteps; step++) {
-          for (const col of sortedDerived) {
-            if (step < col.storage.length) continue; // already computed
+          for (const level of sortedLevels) {
+            const ready = level.filter(col => step >= col.storage.length);
+            if (ready.length === 0) continue;
 
-            let inputs = resolveContextInputs(col.context, col, step);
-            if (col.transform) inputs = col.transform(inputs, step);
-            const messages = assembleMessages(inputs);
-            const value = await col.compute({ messages });
-
-            col.storage.push(value);
-
-            yield { column: col._name, step, value };
+            if (ready.length === 1) {
+              yield* computeColumn(ready[0], step);
+            } else {
+              yield* merge(ready.map(col => computeColumn(col, step)));
+            }
           }
         }
 
@@ -181,15 +232,25 @@ export function flow(...leaves: Column[]): Flow {
     nameMap.set(col._name, col);
 
     // Re-sort
-    sortedDerived = topoSort(derived, allSet);
+    sortedLevels = topoSort(derived, allSet);
 
     // Backfill all completed steps
     for (let step = 0; step < computedSteps; step++) {
       let inputs = resolveContextInputs(col.context, col, step);
       if (col.transform) inputs = col.transform(inputs, step);
       const messages = assembleMessages(inputs);
-      const value = await col.compute({ messages });
-      col.storage.push(value);
+      const result = col.compute({ messages });
+
+      if (isAsyncIterable(result)) {
+        let accumulated = "";
+        for await (const delta of result) {
+          accumulated += delta;
+        }
+        col.storage.push(accumulated);
+      } else {
+        const value = await result;
+        col.storage.push(value);
+      }
     }
   }
 

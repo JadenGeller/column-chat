@@ -13,7 +13,7 @@ export type Message = {
 // Compute function signature
 export type ComputeFunction = (args: {
   messages: Message[];
-}) => string | Promise<string>;
+}) => string | Promise<string> | AsyncIterable<string>;
 
 // Pluggable storage for column values
 export interface ColumnStorage {
@@ -26,11 +26,9 @@ export interface ColumnStorage {
 export type StorageProvider = (name: string) => ColumnStorage;
 
 // Events yielded by run()
-export type FlowEvent = {
-  column: string;
-  step: number;
-  value: string;
-};
+export type FlowEvent =
+  | { kind: "delta"; column: string; step: number; delta: string }
+  | { kind: "value"; column: string; step: number; value: string };
 
 // Internal sentinel for self-reference
 export const SELF_MARKER = Symbol("self");

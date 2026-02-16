@@ -46,7 +46,7 @@ packages/
 - If `context` has more than one non-self entry, ALWAYS use XML wrapping (even at steps where only one input has a value). Consistency over cleverness.
 - Self range excludes current step. Input range includes current step. Messages array always ends with a user message.
 - `self` is an imported sentinel. It resolves to "this column" at flow creation time. It supports `.latest`, `.window(n)` like any column view.
-- `run()` returns an async iterable yielding `{ column, step, value }` events. It's idempotent — skips already-computed cells.
+- `run()` returns an async iterable yielding `FlowEvent` (discriminated union with `kind: "delta"` and `kind: "value"`). It's idempotent — skips already-computed cells.
 - `push()` writes to source columns. It does not trigger computation. `run()` triggers computation.
 - `flow()` takes leaf columns, traces dependencies to discover the full DAG including sources. No manual source registration.
 - Values are strings. No structured data for now.
@@ -67,6 +67,6 @@ Then test the full lifecycle: push → run → get.
 
 ## What NOT to Build
 
-- No streaming of LLM tokens. `run()` streams column completions, not token-level output.
+- `run()` supports token-level streaming: when a compute function returns `AsyncIterable<string>`, `run()` yields `{ kind: "delta" }` events for each token, then a final `{ kind: "value" }` event. Non-streaming compute functions yield only `{ kind: "value" }` events.
 - No UI. This is a library.
 - No editing past values. Append-only.

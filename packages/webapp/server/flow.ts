@@ -45,7 +45,7 @@ export function createSessionFromConfig(config: SessionConfig) {
     const col = column(cfg.name, {
       context: contextViews,
       transform: cfg.footerText ? footer(cfg.footerText) : undefined,
-      compute: prompt(model, cfg.systemPrompt),
+      compute: prompt(model, cfg.systemPrompt, { stream: true }),
       storage,
     });
 

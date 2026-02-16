@@ -117,19 +117,25 @@ export function useColumnar(): ColumnarState {
             return;
           }
 
-          const { column, value: colValue } = data as {
-            column: string;
-            step: number;
-            value: string;
-          };
-
-          setSteps((prev) =>
-            prev.map((s, i) =>
-              i === stepIndex
-                ? { ...s, columns: { ...s.columns, [column]: colValue } }
-                : s
-            )
-          );
+          if (data.kind === "delta") {
+            const { column, delta } = data as { column: string; delta: string };
+            setSteps((prev) =>
+              prev.map((s, i) =>
+                i === stepIndex
+                  ? { ...s, columns: { ...s.columns, [column]: (s.columns[column] ?? "") + delta } }
+                  : s
+              )
+            );
+          } else if (data.kind === "value") {
+            const { column, value: colValue } = data as { column: string; value: string };
+            setSteps((prev) =>
+              prev.map((s, i) =>
+                i === stepIndex
+                  ? { ...s, columns: { ...s.columns, [column]: colValue } }
+                  : s
+              )
+            );
+          }
         }
       }
     }).catch((err) => {
