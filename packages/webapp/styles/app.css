@@ -1729,3 +1729,47 @@ body,
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ===================================================
+   DEMO VIDEO PAGE
+   =================================================== */
+
+.demo-video-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 64px 48px;
+}
+
+.demo-video-page .thread-empty {
+  flex: none;
+}
+
+.demo-video-logo-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.demo-video-container {
+  border: var(--border-thick);
+  box-shadow: var(--shadow);
+  background: var(--surface);
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16 / 9;
+}
+
+.demo-video-container iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: none;
+}
+
+.demo-video-links {
+  display: flex;
+  gap: 16px;
+}
