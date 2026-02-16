@@ -86,7 +86,7 @@ export function ColumnCard({ name, value, color, prompt, index, status, dependen
                 ))}
               </div>
             </div>
-          ) : isLoading ? (
+          ) : isLoading && value === undefined ? (
             <div className="column-card-spinner">Computing...</div>
           ) : (
             <div className="column-card-value">
