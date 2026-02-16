@@ -23,11 +23,14 @@ export function Chat({ state }: ChatProps) {
         <ThreadPrimitive.Viewport className="thread-viewport">
           <ThreadPrimitive.Empty>
             <div className="thread-empty">
-              <h2>Thinking Prism</h2>
+              <div className="thread-empty-mark">Vol. I / No. 1</div>
+              <h2>Thinking<br />Prism</h2>
+              <hr className="thread-empty-rule" />
               <p>
                 Write freely. Your thoughts will be refracted through multiple
                 analytical lenses.
               </p>
+              <div className="thread-empty-footer">Columnar Analysis Engine</div>
             </div>
           </ThreadPrimitive.Empty>
 
@@ -55,7 +58,7 @@ export function Chat({ state }: ChatProps) {
               onClick={clearChat}
               disabled={isRunning}
             >
-              Clear
+              Clear session
             </button>
           )}
         </div>
@@ -67,7 +70,7 @@ export function Chat({ state }: ChatProps) {
 const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root className="message-user">
-      <div className="message-user-label">You</div>
+      <div className="message-user-label">Input</div>
       <div className="message-user-content">
         <MessagePrimitive.Content />
       </div>
@@ -111,13 +114,14 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
 
     return (
       <div className="columns-grid">
-        {data.columnOrder.map((name) => (
+        {data.columnOrder.map((name, index) => (
           <ColumnCard
             key={name}
             name={name}
             value={data.columns[name]}
             color={data.columnColors[name]}
             prompt={data.columnPrompts[name]}
+            index={index}
           />
         ))}
       </div>

@@ -7,6 +7,9 @@ export function App() {
 
   return (
     <div className="app">
+      <span className="vertical-label">Analysis</span>
+      <span className="registration-mark top-center">+</span>
+      <span className="registration-mark bottom-center">+</span>
       <div className="chat-area">
         <Chat state={state} />
       </div>
