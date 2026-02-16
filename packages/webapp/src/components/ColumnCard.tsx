@@ -14,12 +14,6 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function isBulletList(text: string): boolean {
-  const lines = text.trim().split("\n").filter(Boolean);
-  if (lines.length < 1) return false;
-  return lines.every((line) => line.trimStart().startsWith("- ") || line.trimStart().startsWith("* "));
-}
-
 export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
@@ -44,7 +38,6 @@ export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProp
   const style = color ? { "--column-color": color } as React.CSSProperties : undefined;
 
   const wordCount = value ? countWords(value) : 0;
-  const useMono = value ? isBulletList(value) : false;
 
   return (
     <div className={`column-card ${isLoading ? "loading" : ""} ${collapsed ? "collapsed" : ""}`} style={style}>
@@ -79,7 +72,7 @@ export function ColumnCard({ name, value, color, prompt, index }: ColumnCardProp
             {isLoading ? (
               <div className="column-card-spinner">Computing...</div>
             ) : (
-              <div className={useMono ? "column-card-value-mono" : "column-card-value"}>
+              <div className="column-card-value">
                 {value}
               </div>
             )}
