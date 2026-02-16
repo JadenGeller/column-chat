@@ -1,4 +1,4 @@
-import { useState, useCallback, useContext, useEffect, useRef, createContext, type FC, type MutableRefObject } from "react";
+import { useState, useCallback, useContext, useEffect, useRef, useMemo, createContext, type FC, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import {
   AssistantRuntimeProvider,
@@ -123,6 +123,48 @@ function EmptyColumnsPreview({
   );
 }
 
+function PresetPicker({ onSelect, onBuildOwn }: {
+  onSelect: (config: import("../../shared/types.js").SessionConfig) => void;
+  onBuildOwn: () => void;
+}) {
+  const presetConfigs = useMemo(
+    () => PRESETS.map((p) => ({ preset: p, config: p.create() })),
+    [],
+  );
+
+  return (
+    <div className="preset-picker">
+      <div className="preset-grid">
+        {presetConfigs.map(({ preset, config }) => (
+          <button
+            key={preset.name}
+            className="preset-card"
+            onClick={() => onSelect(config)}
+          >
+            <div className="preset-strips">
+              {config.map((col) => (
+                <span
+                  key={col.id}
+                  className="preset-strip"
+                  style={{ background: col.color }}
+                />
+              ))}
+            </div>
+            <span className="preset-card-label">{preset.name}</span>
+            <span className="preset-card-desc">{preset.description}</span>
+          </button>
+        ))}
+      </div>
+      <button
+        className="preset-build-own"
+        onClick={onBuildOwn}
+      >
+        or build your own
+      </button>
+    </div>
+  );
+}
+
 interface ChatProps {
   state: ColumnarState;
   scrollLeftRef: MutableRefObject<number>;
@@ -216,32 +258,25 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
                 One message in, multiple perspectives out.
               </p>
               {columnOrder.length === 0 ? (
-                <div className="preset-picker">
-                  {PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      className="preset-card"
-                      onClick={() => state.loadPreset(preset.create())}
-                    >
-                      <span className="preset-card-label">Try: {preset.name}</span>
-                      <span className="preset-card-meta">{preset.create().length} columns</span>
-                      <span className="preset-card-desc">{preset.description}</span>
-                    </button>
-                  ))}
+                <PresetPicker
+                  onSelect={(config) => state.loadPreset(config)}
+                  onBuildOwn={() => setEditing(true)}
+                />
+              ) : (
+                <>
+                  <EmptyColumnsPreview
+                    columnOrder={columnOrder}
+                    columnColors={columnColors}
+                    columnPrompts={columnPrompts}
+                    columnContext={columnContext}
+                  />
                   <button
                     className="preset-build-own"
-                    onClick={() => setEditing(true)}
+                    onClick={() => state.loadPreset([])}
                   >
-                    or build your own
+                    clear columns
                   </button>
-                </div>
-              ) : (
-                <EmptyColumnsPreview
-                  columnOrder={columnOrder}
-                  columnColors={columnColors}
-                  columnPrompts={columnPrompts}
-                  columnContext={columnContext}
-                />
+                </>
               )}
             </div>
           </ThreadPrimitive.Empty>

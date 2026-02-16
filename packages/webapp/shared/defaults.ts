@@ -32,8 +32,211 @@ export interface Preset {
 
 export const PRESETS: Preset[] = [
   {
+    name: "Brainstorm",
+    description: "Generate & refine ideas together.",
+    create: () => {
+      const colors = [...PRESET_COLORS];
+      return [
+        {
+          id: columnId(),
+          name: "ideas",
+          systemPrompt:
+            "Extract every concrete idea from the conversation. Include ideas mentioned in passing. Don't editorialize — just capture.",
+          reminder: "Bulleted list only. One idea per bullet. No commentary.",
+          color: colors[0],
+          context: [
+            { column: "input", row: "current" as const, count: "all" as const },
+            { column: "self", row: "previous" as const, count: "all" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "themes",
+          systemPrompt:
+            "Group the ideas into 2–5 named themes. Give each theme a short title and list which ideas fall under it.",
+          reminder: "Theme titles followed by their ideas. Structured, no prose.",
+          color: colors[1],
+          context: [
+            { column: "ideas", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "critique",
+          systemPrompt:
+            "Play devil's advocate. For each idea with a real weakness, name it in one sentence. Be specific and constructive, not dismissive.",
+          reminder: "2–3 sentences per real weakness. Skip solid ideas.",
+          color: colors[2],
+          context: [
+            { column: "ideas", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "builds",
+          systemPrompt:
+            "Propose 2–3 builds — combine ideas, pivot weak ones, or address criticisms. Each build should be stronger than any single idea.",
+          reminder: "2–3 numbered builds. One sentence each + why it's stronger.",
+          color: colors[3],
+          context: [
+            { column: "themes", row: "current" as const, count: "single" as const },
+            { column: "critique", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "gameplan",
+          systemPrompt:
+            "Recommend a path forward. Which themes to prioritize, which builds are most promising, what risks remain.",
+          reminder: "One concise paragraph. A recommendation, not an analysis.",
+          color: colors[4],
+          context: [
+            { column: "themes", row: "current" as const, count: "single" as const },
+            { column: "critique", row: "current" as const, count: "single" as const },
+            { column: "builds", row: "current" as const, count: "single" as const },
+          ],
+        },
+      ];
+    },
+  },
+  {
+    name: "Research",
+    description: "Explore & map a topic.",
+    create: () => {
+      const colors = [...PRESET_COLORS];
+      return [
+        {
+          id: columnId(),
+          name: "concepts",
+          systemPrompt:
+            "Maintain a glossary of key concepts discussed. 1–2 sentence definition each. Add new ones, update evolving ones.",
+          reminder: "Glossary format: concept name then definition. No commentary.",
+          color: colors[2],
+          context: [
+            { column: "input", row: "current" as const, count: "all" as const },
+            { column: "self", row: "previous" as const, count: "all" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "questions",
+          systemPrompt:
+            "Track open questions. Mark answered ones as resolved. Focus on genuine uncertainties.",
+          reminder: "Checklist format. Mark resolved questions. Keep open ones.",
+          color: colors[1],
+          context: [
+            { column: "input", row: "current" as const, count: "all" as const },
+            { column: "self", row: "previous" as const, count: "all" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "connections",
+          systemPrompt:
+            "Identify how concepts relate — causes, prerequisites, tensions, analogies. Focus on non-obvious relationships.",
+          reminder: "One sentence per connection: 'X relates to Y because...'. Top 3–5 only.",
+          color: colors[5],
+          context: [
+            { column: "concepts", row: "current" as const, count: "single" as const },
+            { column: "questions", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "understanding",
+          systemPrompt:
+            "Summarize current understanding: what's established, what's uncertain, where the gaps are. Write as if catching someone up.",
+          reminder: "One paragraph, plain language. What's clear and what's fuzzy.",
+          color: colors[3],
+          context: [
+            { column: "concepts", row: "current" as const, count: "single" as const },
+            { column: "questions", row: "current" as const, count: "single" as const },
+            { column: "connections", row: "current" as const, count: "single" as const },
+          ],
+        },
+      ];
+    },
+  },
+  {
+    name: "Think It Through",
+    description: "Stress-test any argument.",
+    create: () => {
+      const colors = [...PRESET_COLORS];
+      return [
+        {
+          id: columnId(),
+          name: "position",
+          systemPrompt:
+            "Distill the speaker's current position into one clear statement. Capture the core claim and key reasoning. Update as it evolves.",
+          reminder: "One clear paragraph. State the position as if committing to it now.",
+          color: colors[0],
+          context: [
+            { column: "input", row: "current" as const, count: "all" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "evidence",
+          systemPrompt:
+            "List every piece of evidence, example, or data point cited. Include things mentioned in passing. Don't add your own.",
+          reminder: "Bulleted list. One piece of evidence per bullet. No editorializing.",
+          color: colors[5],
+          context: [
+            { column: "input", row: "current" as const, count: "all" as const },
+            { column: "self", row: "previous" as const, count: "all" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "assumptions",
+          systemPrompt:
+            "What hidden assumptions does this position rest on? What must be true for the argument to hold? Focus on unstated beliefs.",
+          reminder: "3–5 assumptions as bullets. One sentence each.",
+          color: colors[1],
+          context: [
+            { column: "position", row: "current" as const, count: "single" as const },
+            { column: "evidence", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "pushback",
+          systemPrompt:
+            "Steel-man the strongest counterargument. Use the speaker's own evidence gaps and assumptions. Be rigorous, not contrarian.",
+          reminder: "2–3 forceful sentences. Argue as if you genuinely hold the opposing view.",
+          color: colors[4],
+          context: [
+            { column: "position", row: "current" as const, count: "single" as const },
+            { column: "evidence", row: "current" as const, count: "single" as const },
+            { column: "self", row: "previous" as const, count: "single" as const },
+          ],
+        },
+        {
+          id: columnId(),
+          name: "verdict",
+          systemPrompt:
+            "Assess overall strength. Consider evidence, assumptions, and counterarguments. What's the weakest link? What would make it stronger?",
+          reminder: "One paragraph. Direct about strengths and weaknesses.",
+          color: colors[6],
+          context: [
+            { column: "position", row: "current" as const, count: "single" as const },
+            { column: "evidence", row: "current" as const, count: "single" as const },
+            { column: "assumptions", row: "current" as const, count: "single" as const },
+            { column: "pushback", row: "current" as const, count: "single" as const },
+          ],
+        },
+      ];
+    },
+  },
+  {
     name: "Idea Evaluator",
-    description: "Analyze ideas through 7 lenses — from customer fit to final verdict.",
+    description: "Analyze ideas through 7 lenses.",
     create: () => {
       const colors = [...PRESET_COLORS];
       return [

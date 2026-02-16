@@ -314,31 +314,55 @@ body,
   filter: grayscale(1);
 }
 
-/* Preset picker */
+/* Preset picker — 2×2 grid */
 .preset-picker {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   margin-top: 20px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  max-width: 520px;
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .preset-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .preset-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 18px 28px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 18px;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   cursor: pointer;
   transition: border-color 0.15s;
-  width: 320px;
-  max-width: 100%;
 }
 
 .preset-card:hover {
   border-color: var(--border-subtle-hover);
+}
+
+/* Mini colored strips — visual fingerprint of column count */
+.preset-strips {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+}
+
+.preset-strip {
+  width: 4px;
+  height: 28px;
 }
 
 .preset-card-label {
@@ -350,21 +374,12 @@ body,
   color: var(--black);
 }
 
-.preset-card-meta {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
 .preset-card-desc {
   font-family: var(--font-body);
   font-style: italic;
   font-size: 13px;
   color: var(--text-dim);
   line-height: 1.5;
-  text-align: center;
 }
 
 .preset-build-own {
