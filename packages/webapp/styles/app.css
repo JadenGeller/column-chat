@@ -389,8 +389,11 @@ body,
   align-items: center;
   justify-content: center;
   border: 1px dashed var(--border-subtle);
+  border-radius: 0;
   background: none;
   cursor: pointer;
+  padding: 0;
+  outline: none;
   font-family: var(--font-body);
   font-size: 13px;
   font-style: italic;

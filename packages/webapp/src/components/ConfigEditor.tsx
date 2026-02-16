@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { ColumnarState } from "../hooks/useColumnar.js";
 import type { ColumnConfig, SessionConfig, Mutation } from "../../shared/types.js";
 import { PRESET_COLORS, displayName, columnId } from "../../shared/defaults.js";
@@ -134,24 +134,23 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
 export function ConfigEditor({ state }: ConfigEditorProps) {
   const [confirmEntries, setConfirmEntries] = useState<ImpactEntry[] | null>(null);
   const [checkedNames, setCheckedNames] = useState<Set<string>>(new Set());
+  const newColumnIdRef = useRef<string | null>(null);
   const { draftConfig, appliedConfig, mutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft } = state;
   const summary = changeSummary(mutations, appliedConfig, draftConfig);
 
   const addColumn = () => {
-    let n = 1;
-    const names = new Set(draftConfig.map((c) => c.name));
-    while (names.has(`column_${n}`)) n++;
-
     const usedColors = new Set(draftConfig.map((c) => c.color));
     const color = PRESET_COLORS.find((c) => !usedColors.has(c)) ?? PRESET_COLORS[0];
+    const id = columnId();
+    newColumnIdRef.current = id;
 
     dispatch({
       type: "add",
       config: {
-        id: columnId(),
-        name: `column_${n}`,
+        id,
+        name: "",
         systemPrompt: "",
-        reminder: "",
+        reminder: "Keep responses brief.",
         color,
         context: [
           { column: "input", row: "current", count: "all" },
@@ -202,19 +201,24 @@ export function ConfigEditor({ state }: ConfigEditorProps) {
   return (
     <div className="config-editor">
       <div className="config-editor-row">
-        {draftConfig.map((col, i) => (
-          <ColumnConfigCard
-            key={col.id}
-            config={col}
-            index={i}
-            totalCount={draftConfig.length}
-            fullConfig={draftConfig}
-            onUpdate={(changes) => dispatch({ type: "update", id: col.id, changes })}
-            onDelete={() => dispatch({ type: "remove", id: col.id })}
-            onMoveLeft={() => dispatch({ type: "move", id: col.id, direction: -1 })}
-            onMoveRight={() => dispatch({ type: "move", id: col.id, direction: 1 })}
-          />
-        ))}
+        {draftConfig.map((col, i) => {
+          const isNew = col.id === newColumnIdRef.current;
+          if (isNew) newColumnIdRef.current = null;
+          return (
+            <ColumnConfigCard
+              key={col.id}
+              config={col}
+              index={i}
+              totalCount={draftConfig.length}
+              fullConfig={draftConfig}
+              autoFocusName={isNew}
+              onUpdate={(changes) => dispatch({ type: "update", id: col.id, changes })}
+              onDelete={() => dispatch({ type: "remove", id: col.id })}
+              onMoveLeft={() => dispatch({ type: "move", id: col.id, direction: -1 })}
+              onMoveRight={() => dispatch({ type: "move", id: col.id, direction: 1 })}
+            />
+          );
+        })}
 
         <button className="config-add-btn" onClick={addColumn} aria-label="Add column">
           +

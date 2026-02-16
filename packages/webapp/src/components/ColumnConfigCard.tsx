@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ColumnConfig, SessionConfig } from "../../shared/types.js";
 import { PRESET_COLORS, displayName } from "../../shared/defaults.js";
 import { ContextEditor } from "./ContextEditor.js";
@@ -7,6 +8,7 @@ interface ColumnConfigCardProps {
   index: number;
   totalCount: number;
   fullConfig: SessionConfig;
+  autoFocusName?: boolean;
   onUpdate: (updates: Partial<ColumnConfig>) => void;
   onDelete: () => void;
   onMoveLeft: () => void;
@@ -18,17 +20,24 @@ export function ColumnConfigCard({
   index,
   totalCount,
   fullConfig,
+  autoFocusName,
   onUpdate,
   onDelete,
   onMoveLeft,
   onMoveRight,
 }: ColumnConfigCardProps) {
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if ((autoFocusName || config.name === "") && nameRef.current) {
+      nameRef.current.focus();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const availableColumns = fullConfig
     .filter((_, i) => i !== index)
     .map((c) => c.name);
 
   const handleDelete = () => {
-    if (totalCount <= 1) return;
     onDelete();
   };
 
@@ -62,7 +71,7 @@ export function ColumnConfigCard({
           <button
             className="config-delete-btn"
             onClick={handleDelete}
-            disabled={totalCount <= 1}
+            disabled={false}
             aria-label="Delete column"
           >
             x
@@ -73,6 +82,7 @@ export function ColumnConfigCard({
           <div className="config-field">
             <label className="config-label">Name</label>
             <input
+              ref={nameRef}
               className="config-input"
               value={config.name}
               onChange={(e) => onUpdate({ name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") })}

@@ -10,6 +10,7 @@ import {
 import type { ColumnarState } from "../hooks/useColumnar.js";
 import { useColumnarRuntime } from "../runtime.js";
 import { ColumnCard } from "./ColumnCard.js";
+import { PRESET_COLORS, columnId } from "../../shared/defaults.js";
 
 const FocusContext = createContext<{
   focused: string | null;
@@ -17,12 +18,16 @@ const FocusContext = createContext<{
   setFocused: (name: string | null, color?: string) => void;
 }>({ focused: null, focusColor: null, setFocused: () => {} });
 
+const ChatActionsContext = createContext<{
+  addColumnAndEdit: () => void;
+}>({ addColumnAndEdit: () => {} });
+
 interface ChatProps {
   state: ColumnarState;
 }
 
 export function Chat({ state }: ChatProps) {
-  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setEditing } = state;
+  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat, setEditing, dispatch, draftConfig } = state;
   const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage);
   const [focused, setFocusedRaw] = useState<string | null>(null);
   const [focusColor, setFocusColor] = useState<string | null>(null);
@@ -32,8 +37,30 @@ export function Chat({ state }: ChatProps) {
     setFocusColor(color ?? null);
   }, []);
 
+  const addColumnAndEdit = useCallback(() => {
+    const usedColors = new Set(draftConfig.map((c) => c.color));
+    const color = PRESET_COLORS.find((c) => !usedColors.has(c)) ?? PRESET_COLORS[0];
+
+    dispatch({
+      type: "add",
+      config: {
+        id: columnId(),
+        name: "",
+        systemPrompt: "",
+        reminder: "Keep responses brief.",
+        color,
+        context: [
+          { column: "input", row: "current", count: "all" },
+          { column: "self", row: "previous", count: "all" },
+        ],
+      },
+    });
+    setEditing(true);
+  }, [draftConfig, dispatch, setEditing]);
+
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <ChatActionsContext.Provider value={{ addColumnAndEdit }}>
       <FocusContext.Provider value={{ focused, focusColor, setFocused }}>
       <ThreadPrimitive.Root className="thread-root">
         <ThreadPrimitive.Viewport className="thread-viewport">
@@ -95,6 +122,7 @@ export function Chat({ state }: ChatProps) {
         document.body
       )}
       </FocusContext.Provider>
+      </ChatActionsContext.Provider>
     </AssistantRuntimeProvider>
   );
 }
@@ -132,8 +160,15 @@ function AssistantMessageContent() {
   );
 }
 
+const EMPTY_MESSAGES = [
+  "it's a little quiet in here",
+  "really think you should add a column",
+  "your thoughts deserve more than silence",
+];
+
 const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
   const { focused, setFocused } = useContext(FocusContext);
+  const { addColumnAndEdit } = useContext(ChatActionsContext);
 
   const toggle = useCallback((name: string, color?: string) => {
     setFocused(focused === name ? null : name, color);
@@ -175,12 +210,13 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
     }
 
     if (data.columnOrder.length === 0) {
+      const message = EMPTY_MESSAGES[Math.min(data.stepIndex, EMPTY_MESSAGES.length - 1)];
       return (
         <div className="columns-layout">
           <div className="columns-grid">
-            <div className="empty-column-card">
-              it's a little quiet in here
-            </div>
+            <button className="empty-column-card" onClick={addColumnAndEdit}>
+              {message}
+            </button>
           </div>
         </div>
       );
