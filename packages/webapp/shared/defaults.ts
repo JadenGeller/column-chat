@@ -90,8 +90,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "gameplan",
           systemPrompt:
-            "Recommend a path forward. Which themes to prioritize, which builds are most promising, what risks remain.",
-          reminder: "One concise paragraph. A recommendation, not an analysis.",
+            "Recommend a path forward — which themes to prioritize, which builds are most promising. Then pose 1–2 provocative what-if questions or unexplored angles that could shift the direction entirely.",
+          reminder: "One paragraph recommendation, then 1–2 what-if questions. Push the thinking further.",
           color: colors[4],
           context: [
             { column: "themes", row: "current" as const, count: "single" as const },
@@ -149,8 +149,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "understanding",
           systemPrompt:
-            "Summarize current understanding: what's established, what's uncertain, where the gaps are. Write as if catching someone up.",
-          reminder: "One paragraph, plain language. What's clear and what's fuzzy.",
+            "Summarize what's established so far, then focus on what's still fuzzy or contradictory. End with 1–2 specific questions that would most clarify the gaps.",
+          reminder: "One paragraph on what's clear, then 1–2 questions to explore next.",
           color: colors[3],
           context: [
             { column: "concepts", row: "current" as const, count: "single" as const },
@@ -221,8 +221,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "verdict",
           systemPrompt:
-            "Assess overall strength. Consider evidence, assumptions, and counterarguments. What's the weakest link? What would make it stronger?",
-          reminder: "One paragraph. Direct about strengths and weaknesses.",
+            "Assess the position's overall strength — what holds up, what doesn't. Then identify the 2–3 questions that, if answered, would most change the picture. Focus on things the speaker could actually investigate or think through.",
+          reminder: "One paragraph assessment, then 2–3 concrete questions to investigate.",
           color: colors[6],
           context: [
             { column: "position", row: "current" as const, count: "single" as const },
@@ -236,7 +236,7 @@ export const PRESETS: Preset[] = [
   },
   {
     name: "Idea Evaluator",
-    description: "Analyze ideas through 7 lenses.",
+    description: "Vet any idea from customer to moat.",
     create: () => {
       const colors = [...PRESET_COLORS];
       return [
@@ -323,8 +323,8 @@ export const PRESETS: Preset[] = [
           id: columnId(),
           name: "verdict",
           systemPrompt:
-            "Deliver a verdict. Go or no-go? What would need to be true? What should be validated first?",
-          reminder: "Reply in 2–3 plain sentences. No markdown, no bullet points.",
+            "Deliver a go or no-go verdict with your reasoning. Then name the single riskiest assumption and what the speaker should validate first.",
+          reminder: "Reply in 2–3 plain sentences. End with what to validate next.",
           color: colors[6],
           context: [
             { column: "business_model", row: "current" as const, count: "single" as const },

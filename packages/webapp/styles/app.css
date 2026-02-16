@@ -327,7 +327,7 @@ body,
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-  max-width: 520px;
+  max-width: 600px;
   width: 100%;
 }
 
@@ -347,6 +347,7 @@ body,
   border: 1px solid var(--border-subtle);
   cursor: pointer;
   transition: border-color 0.15s;
+  text-align: left;
 }
 
 .preset-card:hover {

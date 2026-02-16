@@ -255,7 +255,7 @@ export function Chat({ state, scrollLeftRef, onChangeApiKey }: ChatProps) {
               <h2>Column<br />Chat</h2>
               <hr className="thread-empty-rule" />
               <p>
-                One message in, multiple perspectives out.
+                Perspectives that build on each other.
               </p>
               {columnOrder.length === 0 ? (
                 <PresetPicker
