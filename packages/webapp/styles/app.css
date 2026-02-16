@@ -1137,3 +1137,126 @@ body,
 .context-add:hover {
   color: var(--red);
 }
+
+/* ===================================================
+   CONFIRMATION DIALOG
+   =================================================== */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.4);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-dialog {
+  background: var(--cream);
+  border: 3px solid var(--black);
+  box-shadow: var(--shadow);
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+
+.confirm-header {
+  padding: 14px 18px;
+  border-bottom: 3px solid var(--black);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--black);
+}
+
+.confirm-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.confirm-description {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.confirm-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirm-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 2px solid var(--black);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.confirm-entry:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.confirm-entry input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--black);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.confirm-entry-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--black);
+  flex: 1;
+}
+
+.confirm-entry-action {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border: 1px solid;
+}
+
+.confirm-action-deleted {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.confirm-action-recomputed {
+  color: #d19a66;
+  border-color: #d19a66;
+}
+
+.confirm-entry-cascade {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+
+.confirm-footer {
+  padding: 12px 18px;
+  border-top: 3px solid var(--black);
+  display: flex;
+  gap: 8px;
+}

@@ -31,20 +31,8 @@ export function ColumnConfigCard({
     .slice(0, index)
     .map((c) => c.name);
 
-  // Check which columns depend on this one
-  const dependents = fullConfig
-    .filter((c) => c.context.some((ref) => ref.column === config.name))
-    .map((c) => c.name);
-
   const handleDelete = () => {
     if (totalCount <= 1) return;
-
-    if (dependents.length > 0) {
-      const names = dependents.map((n) => displayName(n)).join(", ");
-      if (!confirm(`Deleting "${displayName(config.name)}" will also remove: ${names}. Continue?`)) {
-        return;
-      }
-    }
     onDelete();
   };
 

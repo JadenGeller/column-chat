@@ -59,7 +59,10 @@ async function* merge<T>(iterables: AsyncIterable<T>[]): AsyncGenerator<T> {
 export interface Flow {
   run(): AsyncIterable<FlowEvent> & PromiseLike<void>;
   get(name: string, step: number): string | undefined;
-  addColumn(col: DerivedColumn): Promise<void>;
+  dependents(name: string): string[];
+  addColumn(col: DerivedColumn): void;
+  removeColumn(name: string): void;
+  replaceColumn(name: string, newCol: DerivedColumn): void;
 }
 
 // Discover the full DAG by tracing from leaf columns back through dependencies
@@ -176,8 +179,13 @@ export function flow(...leaves: Column[]): Flow {
           ...sources.map((s) => s.storage.length)
         );
 
-        // Process new steps
-        for (let step = computedSteps; step < maxSteps; step++) {
+        // Start from earliest dirty step (a cleared/new column has storage.length < computedSteps)
+        const startStep = derived.length > 0
+          ? Math.min(computedSteps, ...derived.map(col => col.storage.length))
+          : computedSteps;
+
+        // Process steps
+        for (let step = startStep; step < maxSteps; step++) {
           for (const level of sortedLevels) {
             const ready = level.filter(col => step >= col.storage.length);
             if (ready.length === 0) continue;
@@ -216,7 +224,31 @@ export function flow(...leaves: Column[]): Flow {
     return col.storage.get(step);
   }
 
-  async function addColumn(col: DerivedColumn): Promise<void> {
+  function dependents(name: string): string[] {
+    const col = nameMap.get(name);
+    if (!col) return [];
+
+    // Collect transitive dependents using the topologically sorted levels
+    const dirty = new Set<Column>([col]);
+    const result: string[] = [];
+
+    for (const level of sortedLevels) {
+      for (const d of level) {
+        if (dirty.has(d)) continue;
+        for (const view of d.context) {
+          if (!isSelfView(view) && dirty.has(view._column as Column)) {
+            dirty.add(d);
+            result.push(d._name);
+            break;
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  function addColumn(col: DerivedColumn): void {
     if (allSet.has(col)) return;
 
     // Validate all deps exist in the flow
@@ -232,28 +264,87 @@ export function flow(...leaves: Column[]): Flow {
     derived.push(col);
     nameMap.set(col._name, col);
 
+    // Re-sort — run() will handle backfill since col.storage.length === 0
+    sortedLevels = topoSort(derived, allSet);
+  }
+
+  function removeColumn(name: string): void {
+    const col = nameMap.get(name);
+    if (!col) throw new Error(`Column "${name}" not found in flow`);
+    if (col.kind === "source") throw new Error(`Cannot remove source column "${name}"`);
+
+    // Check no remaining derived column depends on it
+    for (const d of derived) {
+      if (d === col) continue;
+      for (const view of d.context) {
+        if (!isSelfView(view) && view._column === col) {
+          throw new Error(
+            `Cannot remove "${name}": column "${d._name}" depends on it`
+          );
+        }
+      }
+    }
+
+    allSet.delete(col);
+    derived.splice(derived.indexOf(col as DerivedColumn), 1);
+    nameMap.delete(name);
+    sortedLevels = topoSort(derived, allSet);
+  }
+
+  function replaceColumn(name: string, newCol: DerivedColumn): void {
+    const oldCol = nameMap.get(name);
+    if (!oldCol) throw new Error(`Column "${name}" not found in flow`);
+    if (oldCol.kind === "source") throw new Error(`Cannot replace source column "${name}"`);
+    if (newCol._name !== name) {
+      throw new Error(`Replacement column name "${newCol._name}" must match "${name}"`);
+    }
+
+    // Compute transitive dependents of old column (excluding itself)
+    const depNames = dependents(name);
+    const deps = depNames.map(n => nameMap.get(n) as DerivedColumn);
+
+    // Swap old for new
+    allSet.delete(oldCol);
+    allSet.add(newCol);
+    const idx = derived.indexOf(oldCol as DerivedColumn);
+    derived[idx] = newCol;
+    nameMap.set(name, newCol);
+
+    // Fix up context views: dependent columns' views that point to oldCol must point to newCol
+    for (const dep of deps) {
+      const ctx = dep.context as ColumnView[];
+      for (let i = 0; i < ctx.length; i++) {
+        if (!isSelfView(ctx[i]) && ctx[i]._column === oldCol) {
+          const mode = ctx[i]._windowMode;
+          const viewName = ctx[i]._name;
+          let view: ColumnView;
+          if (mode.kind === "latest") view = newCol.latest;
+          else if (mode.kind === "window") view = newCol.window(mode.n);
+          else view = newCol as ColumnView;
+          if (viewName !== view._name) view = view.as(viewName);
+          ctx[i] = view;
+        }
+      }
+    }
+
+    // Validate new column's deps all exist in flow
+    for (const view of newCol.context) {
+      if (!isSelfView(view) && !allSet.has(view._column as Column)) {
+        throw new Error(
+          `Dependency "${(view._column as Column)._name}" not found in flow`
+        );
+      }
+    }
+
     // Re-sort
     sortedLevels = topoSort(derived, allSet);
 
-    // Backfill all completed steps
-    for (let step = 0; step < computedSteps; step++) {
-      let inputs = resolveContextInputs(col.context, col, step);
-      if (col.transform) inputs = col.transform(inputs, step);
-      const messages = assembleMessages(inputs);
-      const result = col.compute({ messages });
-
-      if (isAsyncIterable(result)) {
-        let accumulated = "";
-        for await (const delta of result) {
-          accumulated += delta;
-        }
-        col.storage.push(accumulated);
-      } else {
-        const value = await result;
-        col.storage.push(value);
-      }
+    // Clear storage for the replaced column and all transitive dependents
+    newCol.storage.clear();
+    for (const dep of deps) {
+      dep.storage.clear();
     }
   }
 
-  return { run, get, addColumn };
+  return { run, get, dependents, addColumn, removeColumn, replaceColumn };
 }

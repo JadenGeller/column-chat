@@ -181,14 +181,96 @@ export function useColumnar(): ColumnarState {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config: draftConfig }),
       });
-      const data = await res.json() as { ok: boolean; config?: SessionConfig; error?: string };
-      if (data.ok && data.config) {
-        setAppliedConfig(data.config);
-        setDraftConfig(data.config);
-        setSteps([]);
+
+      const contentType = res.headers.get("Content-Type") ?? "";
+
+      // Non-streaming response (color-only or error)
+      if (contentType.includes("application/json")) {
+        const data = await res.json() as { ok: boolean; config?: SessionConfig; error?: string };
+        if (data.ok && data.config) {
+          setAppliedConfig(data.config);
+          setDraftConfig(data.config);
+        }
+        return;
+      }
+
+      // SSE streaming response
+      setIsRunning(true);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop()!;
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = JSON.parse(line.slice(6));
+
+          if (data.error) {
+            console.error("Config apply error:", data.error);
+            setIsRunning(false);
+            return;
+          }
+
+          if (data.done) {
+            setIsRunning(false);
+            return;
+          }
+
+          if (data.kind === "init") {
+            const { steps: initSteps, columnOrder: newOrder, config: newConfig } = data as {
+              steps: Array<{ input: string; columns: Record<string, string> }>;
+              columnOrder: string[];
+              config: SessionConfig;
+            };
+            setAppliedConfig(newConfig);
+            setDraftConfig(newConfig);
+            setSteps(
+              initSteps.map((s) => ({
+                ...s,
+                computing: new Set<string>(),
+                isRunning: false,
+              }))
+            );
+          } else if (data.kind === "start") {
+            const { column, step } = data as { column: string; step: number };
+            setSteps((prev) =>
+              prev.map((s, i) =>
+                i === step
+                  ? { ...s, computing: new Set(s.computing).add(column), isRunning: true }
+                  : s
+              )
+            );
+          } else if (data.kind === "delta") {
+            const { column, step, delta } = data as { column: string; step: number; delta: string };
+            setSteps((prev) =>
+              prev.map((s, i) =>
+                i === step
+                  ? { ...s, columns: { ...s.columns, [column]: (s.columns[column] ?? "") + delta } }
+                  : s
+              )
+            );
+          } else if (data.kind === "value") {
+            const { column, step, value: colValue } = data as { column: string; step: number; value: string };
+            setSteps((prev) =>
+              prev.map((s, i) =>
+                i === step
+                  ? { ...s, columns: { ...s.columns, [column]: colValue } }
+                  : s
+              )
+            );
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to apply config:", err);
+      setIsRunning(false);
     }
   }, [draftConfig]);
 

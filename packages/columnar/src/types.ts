@@ -19,6 +19,7 @@ export type ComputeFunction = (args: {
 export interface ColumnStorage {
   get(step: number): string | undefined;
   push(value: string): void;
+  clear(): void;
   readonly length: number;
 }
 

@@ -36,6 +36,12 @@ export function inMemoryStorage(
         store[step][name] = value;
         cachedLength = step + 1;
       },
+      clear(): void {
+        for (const record of store) {
+          delete record[name];
+        }
+        cachedLength = 0;
+      },
       get length(): number {
         if (cachedLength === null) {
           cachedLength = computeLength();
