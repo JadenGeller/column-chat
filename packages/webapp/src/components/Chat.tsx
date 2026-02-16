@@ -36,22 +36,32 @@ export function Chat({ state }: ChatProps) {
   const [hovered, setHoveredRaw] = useState<{ column: string; step: number } | null>(null);
   const hoveredRef = useRef(hovered);
   hoveredRef.current = hovered;
+  const scrollingRef = useRef(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const setHovered = useCallback((h: { column: string; step: number } | null) => {
-    // Skip no-op updates to avoid re-renders on mouse move within same card
+    if (scrollingRef.current) return;
     const cur = hoveredRef.current;
     if (h === null && cur === null) return;
     if (h && cur && h.column === cur.column && h.step === cur.step) return;
     setHoveredRaw(h);
   }, []);
 
-  // Clear hover on scroll
+  // Suppress hover during and briefly after scrolling
   useEffect(() => {
     const viewport = document.querySelector(".thread-viewport");
     if (!viewport) return;
-    const onScroll = () => setHoveredRaw(null);
+    const onScroll = () => {
+      scrollingRef.current = true;
+      setHoveredRaw(null);
+      clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => { scrollingRef.current = false; }, 150);
+    };
     viewport.addEventListener("scroll", onScroll, { passive: true });
-    return () => viewport.removeEventListener("scroll", onScroll);
+    return () => {
+      viewport.removeEventListener("scroll", onScroll);
+      clearTimeout(scrollTimerRef.current);
+    };
   }, []);
 
   const setFocused = useCallback((name: string | null, color?: string) => {
