@@ -504,6 +504,50 @@ body,
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* Waiting state — terminal-style dep display */
+.column-card-waiting {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.waiting-header {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.waiting-deps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.waiting-dep {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.waiting-dep.done {
+  animation: none;
+  opacity: 0.5;
+}
+
+.waiting-dep-status {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.waiting-dep-name {
+  font-size: 11px;
+}
+
 /* Footnote metadata */
 .column-card-footnote {
   display: flex;

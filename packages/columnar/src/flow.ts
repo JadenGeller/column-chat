@@ -17,6 +17,7 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<string> {
 }
 
 async function* computeColumn(col: DerivedColumn, step: number): AsyncGenerator<FlowEvent> {
+  yield { kind: "start" as const, column: col._name, step };
   let inputs = resolveContextInputs(col.context, col, step);
   if (col.transform) inputs = col.transform(inputs, step);
   const messages = assembleMessages(inputs);

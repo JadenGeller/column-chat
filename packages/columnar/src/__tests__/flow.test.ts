@@ -22,6 +22,7 @@ describe("flow", () => {
     }
 
     expect(events).toEqual([
+      { kind: "start", column: "assistant", step: 0 },
       { kind: "value", column: "assistant", step: 0, value: "echo: <user>\nHello\n</user>" },
     ]);
 
@@ -89,7 +90,9 @@ describe("flow", () => {
 
     // steelman computes first, then critic
     expect(events).toEqual([
+      { kind: "start", column: "steelman", step: 0 },
       { kind: "value", column: "steelman", step: 0, value: "pro: <user>\nRust is good\n</user>" },
+      { kind: "start", column: "critic", step: 0 },
       { kind: "value", column: "critic", step: 0, value: "con: <steelman>\npro: <user>\nRust is good\n</user>\n</steelman>" },
     ]);
   });
@@ -237,6 +240,7 @@ describe("streaming", () => {
     }
 
     expect(events).toEqual([
+      { kind: "start", column: "assistant", step: 0 },
       { kind: "delta", column: "assistant", step: 0, delta: "Hello" },
       { kind: "delta", column: "assistant", step: 0, delta: " " },
       { kind: "delta", column: "assistant", step: 0, delta: "World" },
@@ -289,11 +293,13 @@ describe("streaming", () => {
     const plainEvents = events.filter((e: any) => e.column === "plain");
 
     expect(streamerEvents).toEqual([
+      { kind: "start", column: "streamer", step: 0 },
       { kind: "delta", column: "streamer", step: 0, delta: "s1" },
       { kind: "delta", column: "streamer", step: 0, delta: "s2" },
       { kind: "value", column: "streamer", step: 0, value: "s1s2" },
     ]);
     expect(plainEvents).toEqual([
+      { kind: "start", column: "plain", step: 0 },
       { kind: "value", column: "plain", step: 0, value: "plain-value" },
     ]);
   });

@@ -27,6 +27,7 @@ export type StorageProvider = (name: string) => ColumnStorage;
 
 // Events yielded by run()
 export type FlowEvent =
+  | { kind: "start"; column: string; step: number }
   | { kind: "delta"; column: string; step: number; delta: string }
   | { kind: "value"; column: string; step: number; value: string };
 

@@ -93,9 +93,11 @@ describe("fileSystemStorage", () => {
       events.push(event);
     }
 
-    expect(events).toHaveLength(2);
-    expect(events[0]).toEqual({ kind: "value", column: "assistant", step: 0, value: "echo: <user>\nhello\n</user>" });
-    expect(events[1]).toEqual({ kind: "value", column: "assistant", step: 1, value: "echo: <user>\nworld\n</user>" });
+    expect(events).toHaveLength(4);
+    expect(events[0]).toEqual({ kind: "start", column: "assistant", step: 0 });
+    expect(events[1]).toEqual({ kind: "value", column: "assistant", step: 0, value: "echo: <user>\nhello\n</user>" });
+    expect(events[2]).toEqual({ kind: "start", column: "assistant", step: 1 });
+    expect(events[3]).toEqual({ kind: "value", column: "assistant", step: 1, value: "echo: <user>\nworld\n</user>" });
 
     // Verify files on disk via a fresh provider
     const verify = fileSystemStorage(baseDir);
@@ -128,7 +130,7 @@ describe("fileSystemStorage", () => {
     for await (const event of f.run()) {
       firstEvents.push(event);
     }
-    expect(firstEvents).toHaveLength(1);
+    expect(firstEvents).toHaveLength(2);
 
     const secondEvents: any[] = [];
     for await (const event of f.run()) {

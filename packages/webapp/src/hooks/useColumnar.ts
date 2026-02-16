@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from "../../shared/defaults.js";
 export interface Step {
   input: string;
   columns: Record<string, string>;
+  computing: Set<string>;
   isRunning: boolean;
   error?: string;
 }
@@ -14,6 +15,7 @@ export interface ColumnarState {
   columnOrder: string[];
   columnColors: Record<string, string>;
   columnPrompts: Record<string, string>;
+  columnDeps: Record<string, string[]>;
   isRunning: boolean;
   sendMessage: (text: string) => void;
   clearChat: () => void;
@@ -29,11 +31,15 @@ function deriveFromConfig(config: SessionConfig) {
   const columnOrder = config.map((c) => c.name);
   const columnColors: Record<string, string> = {};
   const columnPrompts: Record<string, string> = {};
+  const columnDeps: Record<string, string[]> = {};
   for (const col of config) {
     columnColors[col.name] = col.color;
     columnPrompts[col.name] = col.systemPrompt;
+    columnDeps[col.name] = col.context
+      .map((ref) => ref.column)
+      .filter((c) => c !== "input" && c !== "self");
   }
-  return { columnOrder, columnColors, columnPrompts };
+  return { columnOrder, columnColors, columnPrompts, columnDeps };
 }
 
 export function useColumnar(): ColumnarState {
@@ -42,7 +48,7 @@ export function useColumnar(): ColumnarState {
   const [draftConfig, setDraftConfig] = useState<SessionConfig>(DEFAULT_CONFIG);
   const [isRunning, setIsRunning] = useState(false);
 
-  const { columnOrder, columnColors, columnPrompts } = useMemo(
+  const { columnOrder, columnColors, columnPrompts, columnDeps } = useMemo(
     () => deriveFromConfig(appliedConfig),
     [appliedConfig]
   );
@@ -61,7 +67,7 @@ export function useColumnar(): ColumnarState {
         columnOrder: string[];
         config: SessionConfig;
       }) => {
-        setSteps(data.steps.map((s) => ({ ...s, isRunning: false })));
+        setSteps(data.steps.map((s) => ({ ...s, computing: new Set<string>(), isRunning: false })));
         setAppliedConfig(data.config);
         setDraftConfig(data.config);
       })
@@ -73,7 +79,7 @@ export function useColumnar(): ColumnarState {
 
     setSteps((prev) => [
       ...prev,
-      { input: text, columns: {}, isRunning: true },
+      { input: text, columns: {}, computing: new Set(), isRunning: true },
     ]);
     setIsRunning(true);
 
@@ -117,7 +123,16 @@ export function useColumnar(): ColumnarState {
             return;
           }
 
-          if (data.kind === "delta") {
+          if (data.kind === "start") {
+            const { column } = data as { column: string };
+            setSteps((prev) =>
+              prev.map((s, i) =>
+                i === stepIndex
+                  ? { ...s, computing: new Set(s.computing).add(column) }
+                  : s
+              )
+            );
+          } else if (data.kind === "delta") {
             const { column, delta } = data as { column: string; delta: string };
             setSteps((prev) =>
               prev.map((s, i) =>
@@ -186,6 +201,7 @@ export function useColumnar(): ColumnarState {
     columnOrder,
     columnColors,
     columnPrompts,
+    columnDeps,
     isRunning,
     sendMessage,
     clearChat,

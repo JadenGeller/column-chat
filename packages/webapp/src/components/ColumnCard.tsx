@@ -8,6 +8,8 @@ interface ColumnCardProps {
   color?: string;
   prompt?: string;
   index: number;
+  status: "waiting" | "computing" | "done";
+  dependencies?: { name: string; done: boolean }[];
   expanded?: boolean;
   onToggle?: () => void;
 }
@@ -16,11 +18,11 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function ColumnCard({ name, value, color, prompt, index, expanded, onToggle }: ColumnCardProps) {
+export function ColumnCard({ name, value, color, prompt, index, status, dependencies, expanded, onToggle }: ColumnCardProps) {
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = displayName(name);
-  const isLoading = value === undefined;
+  const isLoading = status !== "done";
 
   const sectionNumber = String(index + 1).padStart(2, "0");
 
@@ -69,7 +71,19 @@ export function ColumnCard({ name, value, color, prompt, index, expanded, onTogg
           </div>
         )}
         <div className="column-card-body">
-          {isLoading ? (
+          {status !== "done" && value === undefined && dependencies && dependencies.length > 0 ? (
+            <div className="column-card-waiting">
+              <div className="waiting-header">{status === "computing" ? "generating" : "waiting on"}</div>
+              <div className="waiting-deps">
+                {dependencies.map((dep) => (
+                  <div key={dep.name} className={`waiting-dep ${dep.done ? "done" : ""}`}>
+                    <span className="waiting-dep-status">{dep.done ? "[done]" : "[....]"}</span>
+                    <span className="waiting-dep-name">{displayName(dep.name)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : isLoading ? (
             <div className="column-card-spinner">Computing...</div>
           ) : (
             <div className="column-card-value">

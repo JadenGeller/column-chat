@@ -14,8 +14,8 @@ interface ChatProps {
 }
 
 export function Chat({ state }: ChatProps) {
-  const { steps, columnOrder, columnColors, columnPrompts, isRunning, sendMessage, clearChat } = state;
-  const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, isRunning, sendMessage);
+  const { steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage, clearChat } = state;
+  const runtime = useColumnarRuntime(steps, columnOrder, columnColors, columnPrompts, columnDeps, isRunning, sendMessage);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -115,12 +115,32 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       columnOrder: string[];
       columnColors: Record<string, string>;
       columnPrompts: Record<string, string>;
+      columnDeps: Record<string, string[]>;
+      computing: string[];
       isRunning: boolean;
       error?: string;
     };
 
     if (data.error) {
       return <div className="step-error">{data.error}</div>;
+    }
+
+    const computingSet = new Set(data.computing);
+
+    function cardStatus(name: string): "waiting" | "computing" | "done" {
+      if (data.columns[name] !== undefined) return "done";
+      if (computingSet.has(name)) return "computing";
+      if (data.isRunning) return "waiting";
+      return "done";
+    }
+
+    function cardDeps(name: string): { name: string; done: boolean }[] | undefined {
+      const deps = data.columnDeps?.[name];
+      if (!deps || deps.length === 0) return undefined;
+      return deps.map((d) => ({
+        name: d,
+        done: data.columns[d] !== undefined,
+      }));
     }
 
     const expanded = data.columnOrder.filter((n) => expandedSet.has(n));
@@ -136,6 +156,8 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
             color={data.columnColors[name]}
             prompt={data.columnPrompts[name]}
             index={data.columnOrder.indexOf(name)}
+            status={cardStatus(name)}
+            dependencies={cardDeps(name)}
             expanded
             onToggle={() => toggle(name)}
           />
@@ -150,6 +172,8 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
                 color={data.columnColors[name]}
                 prompt={data.columnPrompts[name]}
                 index={data.columnOrder.indexOf(name)}
+                status={cardStatus(name)}
+                dependencies={cardDeps(name)}
                 onToggle={() => toggle(name)}
               />
             ))}
