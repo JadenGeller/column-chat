@@ -23,6 +23,7 @@ export interface ColumnarState {
   appliedConfig: SessionConfig;
   draftConfig: SessionConfig;
   mutations: Mutation[];
+  setMutations: (value: Mutation[] | ((prev: Mutation[]) => Mutation[])) => void;
   isDirty: boolean;
   validationError: string | null;
   dispatch: (mutation: Mutation) => void;
@@ -574,6 +575,7 @@ export function useColumnar(chatId: string): ColumnarState {
     appliedConfig,
     draftConfig,
     mutations,
+    setMutations,
     isDirty,
     validationError,
     dispatch,

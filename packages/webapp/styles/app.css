@@ -973,7 +973,7 @@ body,
   padding: 14px 18px;
   min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .config-status-empty {
@@ -989,6 +989,96 @@ body,
   font-size: 12px;
   color: var(--text);
   letter-spacing: 0.02em;
+}
+
+/* Change log — vertical list with individual revert */
+.config-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.config-change-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+/* Kind badge — matches config-impact-action style */
+.config-change-kind {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.config-change-kind-added {
+  color: #5a9a6a;
+  border-color: #5a9a6a;
+}
+
+.config-change-kind-deleted {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.config-change-kind-modified {
+  color: #d19a66;
+  border-color: #d19a66;
+}
+
+.config-change-kind-reordered {
+  color: var(--text-dim);
+  border-color: var(--border-subtle);
+}
+
+/* Column name */
+.config-change-name {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.config-change-deleted .config-change-name {
+  color: var(--red);
+}
+
+/* Changed fields detail */
+.config-change-detail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+/* Dismiss button */
+.config-change-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.config-change-entry:hover .config-change-dismiss {
+  opacity: 1;
+}
+
+.config-change-dismiss:hover {
+  color: var(--red);
 }
 
 .config-editor-error {

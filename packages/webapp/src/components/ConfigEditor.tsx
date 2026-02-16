@@ -94,18 +94,30 @@ function computeImpact(
   return entries.length > 0 ? entries : null;
 }
 
-function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draftConfig: SessionConfig): string[] {
+interface ChangeEntry {
+  key: string;
+  name: string;
+  detail?: string; // changed fields for "modified"
+  kind: "added" | "deleted" | "modified" | "reordered";
+  columnId?: string; // undefined for "reordered"
+}
+
+function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draftConfig: SessionConfig): ChangeEntry[] {
   if (mutations.length === 0) return [];
 
   const appliedById = new Map(appliedConfig.map((c) => [c.id, c]));
   const draftById = new Map(draftConfig.map((c) => [c.id, c]));
-  const items: string[] = [];
+  const entries: ChangeEntry[] = [];
 
   for (const [id, col] of draftById) {
-    if (!appliedById.has(id)) items.push(`${displayName(col.name)} added`);
+    if (!appliedById.has(id)) {
+      entries.push({ key: `add-${id}`, name: displayName(col.name || "Untitled"), kind: "added", columnId: id });
+    }
   }
   for (const [id, col] of appliedById) {
-    if (!draftById.has(id)) items.push(`${displayName(col.name)} deleted`);
+    if (!draftById.has(id)) {
+      entries.push({ key: `del-${id}`, name: displayName(col.name), kind: "deleted", columnId: id });
+    }
   }
   for (const [id, col] of draftById) {
     const old = appliedById.get(id);
@@ -116,7 +128,9 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
     if (old.reminder !== col.reminder) diffs.push("reminder");
     if (old.color !== col.color) diffs.push("color");
     if (JSON.stringify(old.context) !== JSON.stringify(col.context)) diffs.push("context");
-    if (diffs.length > 0) items.push(`${displayName(col.name)} \u2014 ${diffs.join(", ")}`);
+    if (diffs.length > 0) {
+      entries.push({ key: `mod-${id}`, name: displayName(col.name || old.name || "Untitled"), detail: diffs.join(", "), kind: "modified", columnId: id });
+    }
   }
 
   const appliedOrder = appliedConfig.map((c) => c.id);
@@ -126,10 +140,33 @@ function changeSummary(mutations: Mutation[], appliedConfig: SessionConfig, draf
     appliedOrder.every((id) => draftById.has(id)) &&
     appliedOrder.some((id, i) => id !== draftOrder[i])
   ) {
-    items.push("reordered");
+    entries.push({ key: "reorder", name: "columns", kind: "reordered" });
   }
 
-  return items;
+  return entries;
+}
+
+function revertEntry(entry: ChangeEntry, mutations: Mutation[], setMutations: (value: Mutation[] | ((prev: Mutation[]) => Mutation[])) => void) {
+  setMutations((prev) => {
+    switch (entry.kind) {
+      case "added":
+        // Remove all mutations that created or modified this column
+        return prev.filter((m) => {
+          if (m.type === "add" && m.config.id === entry.columnId) return false;
+          if ((m.type === "update" || m.type === "move" || m.type === "remove") && m.id === entry.columnId) return false;
+          return true;
+        });
+      case "deleted":
+        // Remove the remove mutation for this column
+        return prev.filter((m) => !(m.type === "remove" && m.id === entry.columnId));
+      case "modified":
+        // Remove update mutations for this column
+        return prev.filter((m) => !(m.type === "update" && m.id === entry.columnId));
+      case "reordered":
+        // Remove all move mutations
+        return prev.filter((m) => m.type !== "move");
+    }
+  });
 }
 
 export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
@@ -137,7 +174,7 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
   const [checkedNames, setCheckedNames] = useState<Set<string>>(new Set());
   const newColumnIdRef = useRef<string | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
-  const { draftConfig, appliedConfig, mutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft } = state;
+  const { draftConfig, appliedConfig, mutations, setMutations, steps, isDirty, validationError, dispatch, applyConfig, resetDraft } = state;
   const summary = changeSummary(mutations, appliedConfig, draftConfig);
 
   // Sync horizontal scroll position across views
@@ -275,9 +312,26 @@ export function ConfigEditor({ state, scrollLeftRef }: ConfigEditorProps) {
             ) : validationError ? (
               <span className="config-editor-error">{validationError}</span>
             ) : summary.length > 0 ? (
-              <span className="config-status-changes">
-                {summary.join(" \u00b7 ")}
-              </span>
+              <div className="config-changes">
+                {summary.map((entry) => (
+                  <div key={entry.key} className={`config-change-entry config-change-${entry.kind}`}>
+                    <span className={`config-change-kind config-change-kind-${entry.kind}`}>
+                      {entry.kind}
+                    </span>
+                    <span className="config-change-name">{entry.name}</span>
+                    {entry.detail && (
+                      <span className="config-change-detail">{entry.detail}</span>
+                    )}
+                    <button
+                      className="config-change-dismiss"
+                      onClick={() => revertEntry(entry, mutations, setMutations)}
+                      aria-label={`Revert: ${entry.name}`}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
             ) : (
               <span className="config-status-empty">No changes</span>
             )}
