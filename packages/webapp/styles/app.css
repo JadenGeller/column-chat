@@ -668,11 +668,11 @@ body,
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* Waiting state — terminal-style dep display */
+/* Waiting state — dep display */
 .column-card-waiting {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.7;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.6;
   color: var(--text-dim);
   display: flex;
   flex-direction: column;
@@ -680,7 +680,9 @@ body,
 }
 
 .waiting-header {
-  font-size: 10px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -705,11 +707,9 @@ body,
 
 .waiting-dep-status {
   flex-shrink: 0;
-  font-size: 10px;
 }
 
 .waiting-dep-name {
-  font-size: 11px;
 }
 
 /* Footnote metadata */
