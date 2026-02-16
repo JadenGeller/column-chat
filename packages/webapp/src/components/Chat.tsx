@@ -159,8 +159,8 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
     const computingSet = new Set(data.computing);
 
     function cardStatus(name: string): "waiting" | "computing" | "done" {
-      if (data.columns[name] !== undefined) return "done";
       if (computingSet.has(name)) return "computing";
+      if (data.columns[name] !== undefined) return "done";
       if (data.isRunning) return "waiting";
       return "done";
     }
@@ -170,7 +170,7 @@ const ColumnsRenderer: FC<{ text: string }> = ({ text }) => {
       if (!deps || deps.length === 0) return undefined;
       return deps.map((d) => ({
         name: d,
-        done: data.columns[d] !== undefined,
+        done: data.columns[d] !== undefined && !computingSet.has(d),
       }));
     }
 

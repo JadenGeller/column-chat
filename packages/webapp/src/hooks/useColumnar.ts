@@ -276,11 +276,12 @@ export function useColumnar(chatId: string): ColumnarState {
               );
             } else if (data.kind === "value") {
               setSteps((prev) =>
-                prev.map((s, i) =>
-                  i === stepIndex
-                    ? { ...s, columns: { ...s.columns, [data.column]: data.value } }
-                    : s
-                )
+                prev.map((s, i) => {
+                  if (i !== stepIndex) return s;
+                  const computing = new Set(s.computing);
+                  computing.delete(data.column);
+                  return { ...s, columns: { ...s.columns, [data.column]: data.value }, computing };
+                })
               );
             }
           },
@@ -318,11 +319,12 @@ export function useColumnar(chatId: string): ColumnarState {
               );
             } else if (event.kind === "value") {
               setSteps((prev) =>
-                prev.map((s, i) =>
-                  i === stepIndex
-                    ? { ...s, columns: { ...s.columns, [event.column]: event.value } }
-                    : s
-                )
+                prev.map((s, i) => {
+                  if (i !== stepIndex) return s;
+                  const computing = new Set(s.computing);
+                  computing.delete(event.column);
+                  return { ...s, columns: { ...s.columns, [event.column]: event.value }, computing };
+                })
               );
             }
           }
@@ -408,11 +410,12 @@ export function useColumnar(chatId: string): ColumnarState {
               );
             } else if (data.kind === "value") {
               setSteps((prev) =>
-                prev.map((s, i) =>
-                  i === data.step
-                    ? { ...s, columns: { ...s.columns, [data.column]: data.value } }
-                    : s
-                )
+                prev.map((s, i) => {
+                  if (i !== data.step) return s;
+                  const computing = new Set(s.computing);
+                  computing.delete(data.column);
+                  return { ...s, columns: { ...s.columns, [data.column]: data.value }, computing };
+                })
               );
             }
           },
@@ -487,11 +490,12 @@ export function useColumnar(chatId: string): ColumnarState {
             );
           } else if (event.kind === "value") {
             setSteps((prev) =>
-              prev.map((s, i) =>
-                i === event.step
-                  ? { ...s, columns: { ...s.columns, [event.column]: event.value } }
-                  : s
-              )
+              prev.map((s, i) => {
+                if (i !== event.step) return s;
+                const computing = new Set(s.computing);
+                computing.delete(event.column);
+                return { ...s, columns: { ...s.columns, [event.column]: event.value }, computing };
+              })
             );
           }
         }
